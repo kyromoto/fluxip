@@ -41,6 +41,18 @@ services:
       - "3001:3001"
       - "3002:3002"
 
+  bull-board:
+    image: deadly0/bull-board:latest
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      BULL_PREFIX: bull
+    ports:
+      - "3010:3000"
+
   app:
     build:
       context: .
@@ -57,6 +69,8 @@ services:
       - .env
     ports:
       - "8080:8080"
+    volumes:
+      - access-log-data:/app/logs
 
   frontend:
     build:
@@ -70,3 +84,4 @@ services:
 
 volumes:
   postgres-data:
+  access-log-data:

@@ -4,6 +4,7 @@ import type { Redis } from "ioredis";
 import { AccountClosureService } from "../../domain/account/account-closure-service.js";
 import { AccountService } from "../../domain/account/account-service.js";
 import type { Config } from "../../config/env.js";
+import { createAccessLogMiddleware } from "../../observability/access-log.js";
 import type { ActionExecutionJobData } from "../queue-bullmq/action-execution-worker.js";
 import type { DebounceJobData } from "../queue-bullmq/debounce-scheduler.js";
 import type { EventStore } from "../../ports/event-store.js";
@@ -43,6 +44,10 @@ export interface CreatedApp {
  */
 export function createApp(deps: AppDependencies): CreatedApp {
   const app = new Hono();
+  // Mounted before every route (including the public trigger endpoint) so every
+  // request — successful, failed, or rejected before authentication — produces
+  // an Access Log entry (FR-007), independent of whether anything below logs.
+  app.use("*", createAccessLogMiddleware());
   app.route("/", metricsRoute);
   app.route(
     "/",

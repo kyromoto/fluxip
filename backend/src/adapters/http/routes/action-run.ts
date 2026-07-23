@@ -6,9 +6,12 @@ import { ACTION_AGGREGATE_TYPE } from "../../../domain/action/events.js";
 import { IP_CLIENT_AGGREGATE_TYPE } from "../../../domain/ip-client/events.js";
 import { initialIpClientState, ipClientReducer } from "../../../domain/ip-client/ip-client-aggregate.js";
 import { loadAggregate } from "../../../domain/replay.js";
+import { getAppLogger, withOperation } from "../../../observability/app-logger.js";
 import type { EventStore } from "../../../ports/event-store.js";
 import type { ActionExecutionJobData } from "../../queue-bullmq/action-execution-worker.js";
 import { getAuth } from "../../auth-logto/oidc-middleware.js";
+
+const logger = getAppLogger(["action-run"]);
 
 export interface ActionRunRouteDeps {
   eventStore: EventStore;
@@ -53,20 +56,29 @@ export function createActionRunRoutes(deps: ActionRunRouteDeps): Hono {
     }
 
     const executionId = ulid();
+    const causationEventId = ulid();
     const jobData: ActionExecutionJobData = {
       tenantId: auth.tenantId,
       executionId,
       actionId,
       ipClientId: actionState.ipClientId,
-      causationEventId: ulid(),
+      causationEventId,
       triggeredBy: "manual",
       ipValues: {
         ipv4: ipClientState.lastKnownIPv4 ?? undefined,
         ipv6: ipClientState.lastKnownIPv6 ?? undefined,
       },
     };
-    // BullMQ custom job IDs cannot contain ":" (see execution-fanout-worker.ts).
-    await deps.actionExecutionQueue.add("execute", jobData, { jobId: `exec-manual-${executionId}` });
+    await withOperation(causationEventId, async () => {
+      // BullMQ custom job IDs cannot contain ":" (see execution-fanout-worker.ts).
+      await deps.actionExecutionQueue.add("execute", jobData, { jobId: `exec-manual-${executionId}` });
+      logger.info("Manual execution requested for action {actionId}", {
+        tenantId: auth.tenantId,
+        actionId,
+        ipClientId: actionState.ipClientId,
+        executionId,
+      });
+    });
 
     return c.json({ executionId }, 202);
   });

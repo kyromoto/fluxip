@@ -22,6 +22,10 @@ export interface Config {
   smtpPassword: string;
   smtpSecure: boolean;
   notificationFromAddress: string;
+  appLogLevel: string;
+  accessLogFilePath: string;
+  accessLogMaxSizeBytes: number;
+  accessLogMaxFiles: number;
 }
 
 const REQUIRED_STRING_VARS = [
@@ -89,5 +93,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     smtpPassword: optionalString(env, "SMTP_PASSWORD"),
     smtpSecure: optionalBool(env, "SMTP_SECURE", false),
     notificationFromAddress: optionalString(env, "NOTIFICATION_FROM_ADDRESS", "fluxip@localhost"),
+    appLogLevel: optionalString(env, "APP_LOG_LEVEL", "info"),
+    accessLogFilePath: optionalString(env, "ACCESS_LOG_FILE_PATH", "logs/access.log"),
+    accessLogMaxSizeBytes: optionalInt(env, "ACCESS_LOG_MAX_SIZE_BYTES", 10_485_760),
+    accessLogMaxFiles: optionalInt(env, "ACCESS_LOG_MAX_FILES", 5),
   };
 }

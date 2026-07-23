@@ -15,9 +15,14 @@ import { EmailNotifier } from "./adapters/notifications-email/email-notifier.js"
 import { loadConfig } from "./config/env.js";
 import { AccountClosureService } from "./domain/account/account-closure-service.js";
 import { AccountService } from "./domain/account/account-service.js";
+import { getAppLogger } from "./observability/app-logger.js";
+import { configureLogging, disposeLogging } from "./observability/logging.js";
+
+const logger = getAppLogger(["startup"]);
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  await configureLogging(config);
 
   const pool = new Pool({ connectionString: config.databaseUrl });
   await runMigrations(pool);
@@ -59,13 +64,14 @@ async function main(): Promise<void> {
   });
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
-    console.log(`FluxIP backend listening on port ${info.port}`);
+    logger.info("FluxIP backend listening on port {port}", { port: info.port });
   });
 
   const shutdown = async (): Promise<void> => {
     await debounceWorker.close();
     await actionExecutionWorker.close();
     await pool.end();
+    await disposeLogging();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);
@@ -73,6 +79,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error("Fatal error during startup:", err);
+  // Deliberately NOT routed only through getAppLogger(): this catch fires for
+  // failures in loadConfig() or configureLogging() itself — i.e. exactly the
+  // cases where LogTape may not be configured yet, where a logger call is a
+  // silent no-op (verified: an unconfigured LogTape logger drops records
+  // without emitting anything). A raw stderr write is the only way this
+  // fatal failure is guaranteed to ever be seen.
+  logger.fatal("Fatal error during startup: {error}", { error: err instanceof Error ? err.message : String(err) });
+  process.stderr.write(`Fatal error during startup: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
   process.exit(1);
 });

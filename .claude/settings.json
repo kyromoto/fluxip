@@ -13,7 +13,11 @@
       "Bash(docker compose *)",
       "Read",
       "Edit",
-      "Write"
+      "Write",
+      "WebFetch(domain:logtape.org)",
+      "WebFetch(domain:jsr.io)",
+      "Bash(npm view *)",
+      "Bash(pnpm install *)"
     ],
     "ask": [
       "Bash(git push *)",

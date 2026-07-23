@@ -4,8 +4,11 @@ import { actionReducer, initialActionState } from "../../domain/action/action-ag
 import { ACTION_AGGREGATE_TYPE } from "../../domain/action/events.js";
 import type { IpValuesUsed, TriggeredBy } from "../../domain/action-execution/events.js";
 import { loadAggregate } from "../../domain/replay.js";
+import { getAppLogger } from "../../observability/app-logger.js";
 import type { EventStore } from "../../ports/event-store.js";
 import type { ActionExecutionJobData } from "./action-execution-worker.js";
+
+const logger = getAppLogger(["execution-fanout"]);
 
 /**
  * On a settled ip_changed, enqueues one execution job per enabled Action on
@@ -40,11 +43,12 @@ export async function fanOutActionExecutions(
 
     // BullMQ custom job IDs cannot contain ":" (it uses colons as its own Redis key separator).
     const jobId = `exec-${params.causationEventId}-${actionId}`;
+    const executionId = ulid();
     await actionExecutionQueue.add(
       "execute",
       {
         tenantId: params.tenantId,
-        executionId: ulid(),
+        executionId,
         actionId,
         ipClientId: params.ipClientId,
         causationEventId: params.causationEventId,
@@ -53,5 +57,12 @@ export async function fanOutActionExecutions(
       },
       { jobId },
     );
+
+    logger.info("Execution enqueued for action {actionId}", {
+      tenantId: params.tenantId,
+      ipClientId: params.ipClientId,
+      actionId,
+      executionId,
+    });
   }
 }

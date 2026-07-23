@@ -23,6 +23,18 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.31)
+      '@logtape/file':
+        specifier: ^2.2.4
+        version: 2.2.4(@logtape/logtape@2.2.4)
+      '@logtape/hono':
+        specifier: ^2.2.4
+        version: 2.2.4(@logtape/logtape@2.2.4)(hono@4.12.31)
+      '@logtape/logtape':
+        specifier: ^2.2.4
+        version: 2.2.4
+      '@logtape/redaction':
+        specifier: ^2.2.4
+        version: 2.2.4(@logtape/logtape@2.2.4)
       bullmq:
         specifier: ^5.34.4
         version: 5.80.10
@@ -54,6 +66,9 @@ importers:
       '@eslint/js':
         specifier: ^9.17.0
         version: 9.39.5
+      '@logtape/testing':
+        specifier: ^2.2.4
+        version: 2.2.4(@logtape/logtape@2.2.4)
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
@@ -912,6 +927,30 @@ packages:
     resolution: {integrity: sha512-jRVXr+zsVHxzDXRoh+CDeXzvCsFJ6uiHhqqNQ26Cw9ZsZ3D6nqPUBt1gGVtj2ZPmRL3a9Uk1v8D1aJ8/I12Dow==}
     peerDependencies:
       solid-js: ^1.8.8
+
+  '@logtape/file@2.2.4':
+    resolution: {integrity: sha512-f+1g4VvB+HegOYwt8GAhYFk1OO9nbi5l0hn7hkKxjnyedE9CBEoKgN36nIYIt58asRms2GDXLtxeK0OStYjnsQ==}
+    peerDependencies:
+      '@logtape/logtape': ^2.2.4
+
+  '@logtape/hono@2.2.4':
+    resolution: {integrity: sha512-y0iKPQ4vOS+s3C2sj40juY7DtyYGnylvdWi1s6J7+5hE3RyW5jBNDax+XiXPEJnVBMg5zU5MHR7dbqGvmPu1hg==}
+    peerDependencies:
+      '@logtape/logtape': ^2.2.4
+      hono: ^4.0.0
+
+  '@logtape/logtape@2.2.4':
+    resolution: {integrity: sha512-2rALzv9m4ibE5FyB8/FMm5MPMMlK7ujgy3ufricVKIxj6e7SZbw4w6J16/fRAsXgdDlOXPUA0aa6XoEQvdlKxw==}
+
+  '@logtape/redaction@2.2.4':
+    resolution: {integrity: sha512-wff/jw/sIUxW/lp86xQ7neNtft1RhC7ND3oSN/UiA5fzteMKXYdC5rbxG8RtJ7oOZWARDy1WiSeXivSwWYqH/g==}
+    peerDependencies:
+      '@logtape/logtape': ^2.2.4
+
+  '@logtape/testing@2.2.4':
+    resolution: {integrity: sha512-39NV0o0Awyb1iDdhWuGMSz8a+6CXUZgFpyXV8MtQzXqz2eai0K4cbe4T7axj+o3HV+ArOmMa7Nyn1sDfdYq5EQ==}
+    peerDependencies:
+      '@logtape/logtape': ^2.2.4
 
   '@logto/browser@3.0.13':
     resolution: {integrity: sha512-SlZ76XiVh2es6eFB1M+ldV6b60eC3+eeKoRQ8/AvOlpwHhrY/v2FPw5LOd/vZ+WYjzDqsxNtOMdhTdliHZ7V1g==}
@@ -4453,6 +4492,25 @@ snapshots:
       '@solid-primitives/refs': 1.1.4(solid-js@1.9.14)
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.14)
       solid-js: 1.9.14
+
+  '@logtape/file@2.2.4(@logtape/logtape@2.2.4)':
+    dependencies:
+      '@logtape/logtape': 2.2.4
+
+  '@logtape/hono@2.2.4(@logtape/logtape@2.2.4)(hono@4.12.31)':
+    dependencies:
+      '@logtape/logtape': 2.2.4
+      hono: 4.12.31
+
+  '@logtape/logtape@2.2.4': {}
+
+  '@logtape/redaction@2.2.4(@logtape/logtape@2.2.4)':
+    dependencies:
+      '@logtape/logtape': 2.2.4
+
+  '@logtape/testing@2.2.4(@logtape/logtape@2.2.4)':
+    dependencies:
+      '@logtape/logtape': 2.2.4
 
   '@logto/browser@3.0.13':
     dependencies:

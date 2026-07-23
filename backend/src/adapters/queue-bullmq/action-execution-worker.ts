@@ -32,11 +32,14 @@ import {
 } from "../../domain/provider-credential/provider-credential-aggregate.js";
 import { decryptSecret } from "../../domain/provider-credential/secret-encryption.js";
 import { loadAggregate } from "../../domain/replay.js";
+import { getAppLogger, withOperation } from "../../observability/app-logger.js";
 import type { ActionExecutor } from "../../ports/action-executor.js";
 import type { EventStore } from "../../ports/event-store.js";
 import type { NotificationChannel } from "../../ports/notification-channel.js";
 import { upsertExecutionProjection } from "../../projections/executions-projection.js";
 import { getRedisConnection, QUEUE_NAMES } from "./queue.js";
+
+const logger = getAppLogger(["action-execution"]);
 
 export interface ActionExecutionJobData {
   tenantId: string;
@@ -153,7 +156,10 @@ async function maybeSendNotification(
     await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.NotificationSent, data);
   } catch (err) {
     // A notification failure must never affect execution status or retry behavior.
-    console.error(`Failed to send notification for execution ${executionId}:`, err);
+    logger.error("Notification send failed for execution {executionId}: {error}", {
+      executionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -185,92 +191,109 @@ async function resolveDnsExecutorConfig(
 export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Worker<ActionExecutionJobData> {
   return new Worker<ActionExecutionJobData>(
     QUEUE_NAMES.actionExecution,
-    async (job: Job<ActionExecutionJobData>) => {
-      const { tenantId, executionId, actionId, ipClientId, causationEventId, triggeredBy, ipValues } = job.data;
-      const attempt = job.attemptsMade + 1;
+    async (job: Job<ActionExecutionJobData>) =>
+      withOperation(job.data.causationEventId, async () => {
+        const { tenantId, executionId, actionId, ipClientId, causationEventId, triggeredBy, ipValues } = job.data;
+        const attempt = job.attemptsMade + 1;
 
-      const startedData: ActionExecutionStartedData = {
-        executionId,
-        accountId: tenantId,
-        actionId,
-        ipClientId,
-        triggeredBy,
-        causationEventId,
-        ipValuesUsed: ipValues,
-        attempt,
-        startedAt: new Date().toISOString(),
-      };
-      await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Started, startedData);
-
-      const { state: actionState } = await loadAggregate(
-        deps.eventStore,
-        { tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
-        initialActionState,
-        actionReducer,
-      );
-
-      if (!actionState.actionId || actionState.status !== "enabled" || !actionState.config || !actionState.type) {
-        return;
-      }
-
-      const missingFamily = actionState.addressFamilies.some(
-        (family) => (family === "ipv4" && !ipValues.ipv4) || (family === "ipv6" && !ipValues.ipv6),
-      );
-      if (missingFamily) {
-        const failedData: ActionExecutionFailedData = {
+        const startedData: ActionExecutionStartedData = {
+          executionId,
+          accountId: tenantId,
+          actionId,
+          ipClientId,
+          triggeredBy,
+          causationEventId,
+          ipValuesUsed: ipValues,
           attempt,
-          error: "Required address family missing from the reported IP change",
-          retriesExhausted: true,
-          failedAt: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
         };
-        await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Failed, failedData);
-        await refreshExecutionProjection(deps, tenantId, executionId);
-        await maybeSendNotification(deps, tenantId, ipClientId, executionId, "failed");
-        return;
-      }
+        await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Started, startedData);
+        logger.info("Execution started for action {actionId}", { tenantId, actionId, ipClientId, executionId, attempt });
 
-      const executor = deps.executors[actionState.type];
-      if (!executor) {
-        throw new Error(`No ActionExecutor registered for type "${actionState.type}"`);
-      }
+        const { state: actionState } = await loadAggregate(
+          deps.eventStore,
+          { tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+          initialActionState,
+          actionReducer,
+        );
 
-      try {
-        const relevantIpValues: IpValuesUsed = {
-          ipv4: actionState.addressFamilies.includes("ipv4") ? ipValues.ipv4 : undefined,
-          ipv6: actionState.addressFamilies.includes("ipv6") ? ipValues.ipv6 : undefined,
-        };
-
-        const resolvedConfig =
-          actionState.type === UPDATE_DNS_RECORD_ACTION_TYPE
-            ? await resolveDnsExecutorConfig(deps, tenantId, actionState.config as UpdateDnsRecordConfig)
-            : undefined;
-
-        const result = await executor.execute(resolvedConfig, relevantIpValues);
-
-        const succeededData: ActionExecutionSucceededData = {
-          completedAt: new Date().toISOString(),
-          providerResponseSummary: result.summary,
-        };
-        await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Succeeded, succeededData);
-        await refreshExecutionProjection(deps, tenantId, executionId);
-        await maybeSendNotification(deps, tenantId, ipClientId, executionId, "succeeded");
-      } catch (err) {
-        const maxAttempts = job.opts.attempts ?? 1;
-        const isFinalAttempt = attempt >= maxAttempts;
-        const failedData: ActionExecutionFailedData = {
-          attempt,
-          error: err instanceof Error ? err.message : String(err),
-          retriesExhausted: isFinalAttempt,
-          failedAt: new Date().toISOString(),
-        };
-        await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Failed, failedData);
-        await refreshExecutionProjection(deps, tenantId, executionId);
-        if (isFinalAttempt) {
-          await maybeSendNotification(deps, tenantId, ipClientId, executionId, "failed");
+        if (!actionState.actionId || actionState.status !== "enabled" || !actionState.config || !actionState.type) {
+          return;
         }
-        throw err;
-      }
-    },
+
+        const missingFamily = actionState.addressFamilies.some(
+          (family) => (family === "ipv4" && !ipValues.ipv4) || (family === "ipv6" && !ipValues.ipv6),
+        );
+        if (missingFamily) {
+          const failedData: ActionExecutionFailedData = {
+            attempt,
+            error: "Required address family missing from the reported IP change",
+            retriesExhausted: true,
+            failedAt: new Date().toISOString(),
+          };
+          await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Failed, failedData);
+          logger.error("Execution failed for action {actionId}: {error}", {
+            tenantId,
+            actionId,
+            ipClientId,
+            executionId,
+            error: failedData.error,
+          });
+          await refreshExecutionProjection(deps, tenantId, executionId);
+          await maybeSendNotification(deps, tenantId, ipClientId, executionId, "failed");
+          return;
+        }
+
+        const executor = deps.executors[actionState.type];
+        if (!executor) {
+          throw new Error(`No ActionExecutor registered for type "${actionState.type}"`);
+        }
+
+        try {
+          const relevantIpValues: IpValuesUsed = {
+            ipv4: actionState.addressFamilies.includes("ipv4") ? ipValues.ipv4 : undefined,
+            ipv6: actionState.addressFamilies.includes("ipv6") ? ipValues.ipv6 : undefined,
+          };
+
+          const resolvedConfig =
+            actionState.type === UPDATE_DNS_RECORD_ACTION_TYPE
+              ? await resolveDnsExecutorConfig(deps, tenantId, actionState.config as UpdateDnsRecordConfig)
+              : undefined;
+
+          const result = await executor.execute(resolvedConfig, relevantIpValues);
+
+          const succeededData: ActionExecutionSucceededData = {
+            completedAt: new Date().toISOString(),
+            providerResponseSummary: result.summary,
+          };
+          await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Succeeded, succeededData);
+          logger.info("Execution succeeded for action {actionId}", { tenantId, actionId, ipClientId, executionId });
+          await refreshExecutionProjection(deps, tenantId, executionId);
+          await maybeSendNotification(deps, tenantId, ipClientId, executionId, "succeeded");
+        } catch (err) {
+          const maxAttempts = job.opts.attempts ?? 1;
+          const isFinalAttempt = attempt >= maxAttempts;
+          const failedData: ActionExecutionFailedData = {
+            attempt,
+            error: err instanceof Error ? err.message : String(err),
+            retriesExhausted: isFinalAttempt,
+            failedAt: new Date().toISOString(),
+          };
+          await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Failed, failedData);
+          logger.error("Execution failed for action {actionId}: {error}", {
+            tenantId,
+            actionId,
+            ipClientId,
+            executionId,
+            error: failedData.error,
+          });
+          await refreshExecutionProjection(deps, tenantId, executionId);
+          if (isFinalAttempt) {
+            await maybeSendNotification(deps, tenantId, ipClientId, executionId, "failed");
+          }
+          throw err;
+        }
+      }),
     { connection: getRedisConnection(deps.config) },
   );
 }

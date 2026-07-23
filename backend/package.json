@@ -15,6 +15,10 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
+    "@logtape/file": "^2.2.4",
+    "@logtape/hono": "^2.2.4",
+    "@logtape/logtape": "^2.2.4",
+    "@logtape/redaction": "^2.2.4",
     "bullmq": "^5.34.4",
     "cloudevents": "^8.0.3",
     "hono": "^4.6.14",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@logtape/testing": "^2.2.4",
     "@types/node": "^22.10.2",
     "globals": "^15.14.0",
     "@types/nodemailer": "^6.4.17",
