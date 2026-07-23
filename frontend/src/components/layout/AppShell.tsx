@@ -6,6 +6,7 @@ import { isAuthenticated, refreshAuthState, signIn, signOut } from "~/services/a
 
 const NAV_LINKS = [
   { href: "/ip-clients", label: "Devices" },
+  { href: "/credentials", label: "Credentials" },
   { href: "/notifications", label: "Notifications" },
   { href: "/account", label: "Account" },
 ];

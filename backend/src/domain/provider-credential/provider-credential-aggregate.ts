@@ -11,6 +11,7 @@ export interface ProviderCredentialState {
   provider: string;
   label: string;
   encryptedSecret: string | null;
+  secretLast4: string;
   status: "active" | "revoked";
 }
 
@@ -20,6 +21,7 @@ export const initialProviderCredentialState: ProviderCredentialState = {
   provider: "",
   label: "",
   encryptedSecret: null,
+  secretLast4: "",
   status: "active",
 };
 
@@ -37,6 +39,7 @@ export function providerCredentialReducer(
         provider: data.provider,
         label: data.label,
         encryptedSecret: data.encryptedSecret,
+        secretLast4: data.secretLast4,
         status: "active",
       };
     }

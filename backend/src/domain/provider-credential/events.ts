@@ -12,6 +12,8 @@ export interface ProviderCredentialStoredData {
   provider: string;
   label: string;
   encryptedSecret: string;
+  /** Cleartext last-4 fragment of the secret, captured once at creation time — the only part of the secret ever returned by a read (FR-004/FR-004a). */
+  secretLast4: string;
   storedAt: string;
 }
 

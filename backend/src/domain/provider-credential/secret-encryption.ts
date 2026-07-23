@@ -17,6 +17,15 @@ export function encryptSecret(plaintext: string, base64Key: string): string {
   return [iv.toString("base64"), authTag.toString("base64"), encrypted.toString("base64")].join(".");
 }
 
+/**
+ * Returns the secret's last 4 characters for masked display (FR-004). Deliberately
+ * derived from the plaintext at creation time, never by decrypting `encryptedSecret`
+ * later — see research.md §3.
+ */
+export function maskLast4(secret: string): string {
+  return secret.slice(-4);
+}
+
 export function decryptSecret(ciphertext: string, base64Key: string): string {
   const [ivB64, authTagB64, dataB64] = ciphertext.split(".");
   if (!ivB64 || !authTagB64 || !dataB64) {

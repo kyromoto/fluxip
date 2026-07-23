@@ -3,22 +3,46 @@ import { ulid } from "ulid";
 import type { Config } from "../../../config/env.js";
 import { buildDomainEvent } from "../../../domain/cloud-events.js";
 import { loadAggregate } from "../../../domain/replay.js";
+import { actionReducer, initialActionState } from "../../../domain/action/action-aggregate.js";
+import { ACTION_AGGREGATE_TYPE } from "../../../domain/action/events.js";
 import {
   PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
   ProviderCredentialEventName,
+  type ProviderCredentialRevokedData,
   type ProviderCredentialStoredData,
 } from "../../../domain/provider-credential/events.js";
 import {
   initialProviderCredentialState,
   providerCredentialReducer,
+  type ProviderCredentialState,
 } from "../../../domain/provider-credential/provider-credential-aggregate.js";
-import { encryptSecret } from "../../../domain/provider-credential/secret-encryption.js";
+import { encryptSecret, maskLast4 } from "../../../domain/provider-credential/secret-encryption.js";
 import type { EventStore } from "../../../ports/event-store.js";
 import { getAuth } from "../../auth-logto/oidc-middleware.js";
 
 export interface ProviderCredentialsRouteDeps {
   config: Config;
   eventStore: EventStore;
+}
+
+/** Every active credential entry for a tenant, via aggregate replay (research.md §4/§8 — small scale, no projection). */
+async function listActiveCredentials(deps: ProviderCredentialsRouteDeps, tenantId: string): Promise<ProviderCredentialState[]> {
+  const ids = await deps.eventStore.listAggregateIds({
+    tenantId,
+    aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
+  });
+
+  const states: ProviderCredentialState[] = [];
+  for (const id of ids) {
+    const { state } = await loadAggregate(
+      deps.eventStore,
+      { tenantId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: id },
+      initialProviderCredentialState,
+      providerCredentialReducer,
+    );
+    if (state.status === "active") states.push(state);
+  }
+  return states;
 }
 
 export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDeps): Hono {
@@ -34,6 +58,12 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       return c.json({ error: "provider, label, and secret are required" }, 400);
     }
 
+    const existing = await listActiveCredentials(deps, auth.tenantId);
+    const normalizedLabel = body.label.trim().toLowerCase();
+    if (existing.some((state) => state.label.trim().toLowerCase() === normalizedLabel)) {
+      return c.json({ error: "label already in use" }, 409);
+    }
+
     const credentialId = ulid();
     const data: ProviderCredentialStoredData = {
       credentialId,
@@ -41,6 +71,7 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       provider: body.provider,
       label: body.label,
       encryptedSecret: encryptSecret(body.secret, deps.config.credentialEncryptionKey),
+      secretLast4: maskLast4(body.secret),
       storedAt: new Date().toISOString(),
     };
     const built = buildDomainEvent(
@@ -63,29 +94,81 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       data: built.data,
     });
 
-    return c.json({ credentialId, provider: body.provider, label: body.label }, 201);
+    return c.json({ credentialId, provider: body.provider, label: body.label, secretLast4: data.secretLast4 }, 201);
   });
 
   router.get("/", async (c) => {
     const auth = getAuth(c);
-    const ids = await deps.eventStore.listAggregateIds({
-      tenantId: auth.tenantId,
-      aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
-    });
+    const states = await listActiveCredentials(deps, auth.tenantId);
+    const items = states.map((state) => ({
+      credentialId: state.credentialId,
+      provider: state.provider,
+      label: state.label,
+      secretLast4: state.secretLast4,
+    }));
+    return c.json({ items });
+  });
 
-    const items = [];
-    for (const id of ids) {
-      const { state } = await loadAggregate(
+  router.delete("/:id", async (c) => {
+    const auth = getAuth(c);
+    const credentialId = c.req.param("id");
+
+    const { state, version } = await loadAggregate(
+      deps.eventStore,
+      { tenantId: auth.tenantId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: credentialId },
+      initialProviderCredentialState,
+      providerCredentialReducer,
+    );
+    if (!state.credentialId || state.accountId !== auth.tenantId || state.status !== "active") {
+      return c.json({ error: "not found" }, 404);
+    }
+
+    const actionIds = await deps.eventStore.listAggregateIds({
+      tenantId: auth.tenantId,
+      aggregateType: ACTION_AGGREGATE_TYPE,
+    });
+    const usedBy: { actionId: string; ipClientId: string; zone: string; recordName: string }[] = [];
+    for (const actionId of actionIds) {
+      const { state: actionState } = await loadAggregate(
         deps.eventStore,
-        { tenantId: auth.tenantId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: id },
-        initialProviderCredentialState,
-        providerCredentialReducer,
+        { tenantId: auth.tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+        initialActionState,
+        actionReducer,
       );
-      if (state.status === "active") {
-        items.push({ credentialId: state.credentialId, provider: state.provider, label: state.label });
+      if (
+        actionState.status !== "detached" &&
+        actionState.config?.providerCredentialId === credentialId &&
+        actionState.actionId &&
+        actionState.ipClientId
+      ) {
+        usedBy.push({
+          actionId: actionState.actionId,
+          ipClientId: actionState.ipClientId,
+          zone: actionState.config.zone,
+          recordName: actionState.config.recordName,
+        });
       }
     }
-    return c.json({ items });
+    if (usedBy.length > 0) {
+      return c.json({ error: "credential_in_use", usedBy }, 409);
+    }
+
+    const data: ProviderCredentialRevokedData = { revokedAt: new Date().toISOString() };
+    const built = buildDomainEvent(deps.config, PROVIDER_CREDENTIAL_AGGREGATE_TYPE, ProviderCredentialEventName.Revoked, data);
+    await deps.eventStore.append({
+      id: built.id,
+      aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
+      aggregateId: credentialId,
+      tenantId: auth.tenantId,
+      expectedSequenceNumber: version + 1,
+      eventName: ProviderCredentialEventName.Revoked,
+      type: built.type,
+      source: built.source,
+      time: built.time,
+      data: built.data,
+    });
+
+    return c.body(null, 204);
   });
 
   return router;
