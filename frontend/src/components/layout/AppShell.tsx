@@ -1,8 +1,7 @@
-import { A, useLocation } from "@solidjs/router";
-import { For, onMount, Show, type JSX } from "solid-js";
+import { A } from "@solidjs/router";
+import { For, type JSX } from "solid-js";
 import { Button } from "~/components/ui/button";
-import { OnboardingGate } from "~/flows/onboarding/OnboardingGate";
-import { isAuthenticated, refreshAuthState, signIn, signOut } from "~/services/auth";
+import { signOut } from "~/services/auth";
 
 const NAV_LINKS = [
   { href: "/ip-clients", label: "Devices" },
@@ -13,16 +12,12 @@ const NAV_LINKS = [
 
 /**
  * Responsive nav + frame replacing the ad hoc Layout() in App.tsx (FR-001/002).
- * Every screen renders inside this shell; dark/light appearance comes from
- * app.css's `prefers-color-scheme` variables alone — no theme logic here.
+ * Only ever rendered inside ProtectedLayout — by the time this mounts, the
+ * user is already known to be authenticated, so there's no sign-in/loading
+ * branching here. Dark/light appearance comes from app.css's
+ * `prefers-color-scheme` variables alone — no theme logic here.
  */
 export function AppShell(props: { children?: JSX.Element }) {
-  const location = useLocation();
-
-  onMount(() => {
-    void refreshAuthState();
-  });
-
   return (
     <div class="min-h-screen bg-background text-foreground">
       <header class="border-b">
@@ -36,30 +31,12 @@ export function AppShell(props: { children?: JSX.Element }) {
               )}
             </For>
           </nav>
-          <Show
-            when={isAuthenticated()}
-            fallback={
-              <Button size="sm" onClick={() => void signIn()}>
-                Sign in
-              </Button>
-            }
-          >
-            <Button size="sm" variant="outline" onClick={() => void signOut()}>
-              Sign out
-            </Button>
-          </Show>
+          <Button size="sm" variant="outline" onClick={() => void signOut()}>
+            Sign out
+          </Button>
         </div>
       </header>
-      <main class="mx-auto max-w-4xl px-4 py-6">
-        <Show
-          when={isAuthenticated() || location.pathname === "/callback"}
-          fallback={<p class="text-muted-foreground">Please sign in to continue.</p>}
-        >
-          <Show when={location.pathname !== "/callback"} fallback={props.children}>
-            <OnboardingGate>{props.children}</OnboardingGate>
-          </Show>
-        </Show>
-      </main>
+      <main class="mx-auto max-w-4xl px-4 py-6">{props.children}</main>
     </div>
   );
 }

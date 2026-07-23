@@ -26,12 +26,18 @@ export const logtoClient = new LogtoClient({
   resources: apiResource ? [apiResource] : undefined,
 });
 
-const [isAuthenticated, setIsAuthenticated] = createSignal(false);
-export { isAuthenticated };
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+
+/** "loading" until the first `refreshAuthState()` call resolves — lets callers avoid a flash of the wrong UI. */
+const [authStatus, setAuthStatus] = createSignal<AuthStatus>("loading");
+export { authStatus };
+
+/** Convenience boolean derived from `authStatus` — never true while still "loading". */
+export const isAuthenticated = () => authStatus() === "authenticated";
 
 /** Re-reads auth state from the Logto client's own storage (call on app start and after callback). */
 export async function refreshAuthState(): Promise<void> {
-  setIsAuthenticated(await logtoClient.isAuthenticated());
+  setAuthStatus((await logtoClient.isAuthenticated()) ? "authenticated" : "unauthenticated");
 }
 
 function callbackUri(): string {
@@ -44,7 +50,7 @@ export async function signIn(): Promise<void> {
 
 export async function signOut(): Promise<void> {
   await logtoClient.signOut(window.location.origin);
-  setIsAuthenticated(false);
+  setAuthStatus("unauthenticated");
 }
 
 export async function handleSignInCallback(): Promise<void> {
