@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fluxip
+          POSTGRES_PASSWORD: fluxip
+          POSTGRES_DB: fluxip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fluxip"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://fluxip:fluxip@localhost:5432/fluxip
+      REDIS_URL: redis://localhost:6379
+      CLOUDEVENTS_SOURCE: https://fluxip.example.com
+      CLOUDEVENTS_TYPE_PREFIX: space.kyro.fluxip
+      LOGTO_ENDPOINT: https://smoke-test.invalid
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags, required so determine-version.mjs can see prior release tags.
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Test
+        run: CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: fluxip:ci
+
+      - name: Smoke test backend role
+        run: |
+          set -e
+          CONTAINER_ID=$(docker run --rm -d --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e REDIS_URL="$REDIS_URL" \
+            -e CLOUDEVENTS_SOURCE="$CLOUDEVENTS_SOURCE" \
+            -e CLOUDEVENTS_TYPE_PREFIX="$CLOUDEVENTS_TYPE_PREFIX" \
+            -e LOGTO_ENDPOINT="$LOGTO_ENDPOINT" \
+            -e CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+            fluxip:ci node backend/dist/main.js)
+          trap 'docker stop "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
+          ok=false
+          for i in $(seq 1 15); do
+            if curl -sf -o /dev/null http://localhost:8080/metrics; then
+              ok=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ok" != true ]; then
+            echo "Backend smoke test failed: /metrics did not return 200 within 15s"
+            docker logs "$CONTAINER_ID" || true
+            exit 1
+          fi
+          echo "Backend smoke test passed"
+
+      - name: Smoke test frontend role
+        run: |
+          set -e
+          CONTAINER_ID=$(docker run --rm -d --network host \
+            fluxip:ci serve -s frontend/dist -l 3000)
+          trap 'docker stop "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
+          ok=false
+          for i in $(seq 1 15); do
+            if curl -sf -o /dev/null http://localhost:3000/; then
+              ok=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ok" != true ]; then
+            echo "Frontend smoke test failed: / did not return 200 within 15s"
+            docker logs "$CONTAINER_ID" || true
+            exit 1
+          fi
+          echo "Frontend smoke test passed"
+
+      - name: Determine version
+        id: version
+        run: node .github/scripts/determine-version.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: steps.version.outputs.should-release == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # No step above sets `continue-on-error`, so the default GitHub Actions
+      # behavior — a failing step stops the job before any later step runs —
+      # is what enforces FR-006: this push step is only ever reached if build,
+      # test, the Docker build, and both smoke tests all already succeeded.
+      - name: Push image to GHCR
+        if: steps.version.outputs.should-release == 'true'
+        run: |
+          set -e
+          IMAGE="ghcr.io/${{ github.repository_owner }}/fluxip"
+          docker tag fluxip:ci "$IMAGE:${{ steps.version.outputs.version }}"
+          docker tag fluxip:ci "$IMAGE:latest"
+          docker push "$IMAGE:${{ steps.version.outputs.version }}"
+          docker push "$IMAGE:latest"
+
+      # Must be the last step in the job: only runs (and only creates a tag)
+      # once the image push above has already succeeded (FR-014).
+      - name: Create Git tag and GitHub Release
+        if: steps.version.outputs.should-release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.git-tag }}" \
+            --title "${{ steps.version.outputs.git-tag }}" \
+            --generate-notes \
+            --target "${{ github.sha }}"
