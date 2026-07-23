@@ -1,5 +1,13 @@
 import { createResource, createSignal, For, Show } from "solid-js";
-import { api } from "../services/api";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
+import { ErrorMessage } from "~/components/feedback/ErrorMessage";
+import { EmptyState } from "~/components/layout/EmptyState";
+import { DeviceWizard } from "~/flows/device-wizard/DeviceWizard";
+import { ReviewCredentialStep } from "~/flows/device-wizard/steps/ReviewCredentialStep";
+import { api } from "~/services/api";
+import { cn } from "~/lib/cn";
 
 interface IpClientSummary {
   ipClientId: string;
@@ -10,34 +18,39 @@ interface IpClientSummary {
   notificationPreference: "off" | "failures_only" | "all";
 }
 
-interface RegisterResponse {
-  ipClientId: string;
-  label?: string;
-  reportingCredential: { username: string; password: string };
-}
-
 async function fetchIpClients(): Promise<IpClientSummary[]> {
   const res = await api.get<{ items: IpClientSummary[] }>("/ip-clients");
   return res.items;
 }
 
+const STATUS_LABEL: Record<IpClientSummary["status"], string> = {
+  enabled: "Enabled",
+  disabled: "Disabled",
+  decommissioned: "Decommissioned",
+};
+
+const NOTIFICATION_LABEL: Record<IpClientSummary["notificationPreference"], string> = {
+  off: "Off",
+  failures_only: "Failures only",
+  all: "All updates",
+};
+
 export default function IpClients() {
   const [ipClients, { refetch }] = createResource(fetchIpClients);
-  const [label, setLabel] = createSignal("");
-  const [newCredential, setNewCredential] = createSignal<RegisterResponse | null>(null);
-  const [error, setError] = createSignal<string | null>(null);
+  const [wizardOpen, setWizardOpen] = createSignal(false);
+  const [rotatedCredential, setRotatedCredential] = createSignal<{ username: string; password: string } | null>(
+    null,
+  );
+  const [error, setError] = createSignal<unknown>(null);
 
-  async function handleRegister(e: Event) {
-    e.preventDefault();
+  function openWizard() {
     setError(null);
-    try {
-      const result = await api.post<RegisterResponse>("/ip-clients", { label: label() });
-      setNewCredential(result);
-      setLabel("");
-      await refetch();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    setWizardOpen(true);
+  }
+
+  async function handleWizardDone() {
+    setWizardOpen(false);
+    await refetch();
   }
 
   async function handleToggle(ipClientId: string, status: IpClientSummary["status"]) {
@@ -46,107 +59,134 @@ export default function IpClients() {
       await api.post(`/ip-clients/${ipClientId}/${status === "enabled" ? "disable" : "enable"}`);
       await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
   async function handleRotate(ipClientId: string) {
     setError(null);
     try {
-      const result = await api.post<RegisterResponse>(`/ip-clients/${ipClientId}/rotate-credential`);
-      setNewCredential(result);
+      const result = await api.post<{ reportingCredential: { username: string; password: string } }>(
+        `/ip-clients/${ipClientId}/rotate-credential`,
+      );
+      setRotatedCredential(result.reportingCredential);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
   async function handleDecommission(ipClientId: string) {
     setError(null);
-    if (!confirm("Decommission this IP Client? This is irreversible.")) return;
+    if (!confirm("Decommission this device? This is irreversible.")) return;
     try {
       await api.delete(`/ip-clients/${ipClientId}`);
       await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
   return (
-    <div>
-      <h1>IP Clients</h1>
-
-      <form onSubmit={handleRegister}>
-        <label>
-          Label
-          <input value={label()} onInput={(e) => setLabel(e.currentTarget.value)} placeholder="e.g. Home FritzBox" />
-        </label>
-        <button type="submit">Register new IP Client</button>
-      </form>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between gap-4">
+        <h1 class="text-2xl font-semibold tracking-tight">Devices</h1>
+        <Button onClick={openWizard}>Add a device</Button>
+      </div>
 
       <Show when={error()}>
-        <p role="alert">{error()}</p>
+        <ErrorMessage error={error()} />
       </Show>
 
-      <Show when={newCredential()}>
-        {(cred) => (
-          <div role="alert">
-            <p>
-              Save these now — the password is shown only once. Configure your router's DynDNS client
-              with these values:
-            </p>
-            <dl>
-              <dt>Update URL</dt>
-              <dd>/nic/update?hostname=fluxip&amp;myip=&lt;ipaddr&gt;</dd>
-              <dt>Username</dt>
-              <dd>{cred().reportingCredential.username}</dd>
-              <dt>Password</dt>
-              <dd>{cred().reportingCredential.password}</dd>
-            </dl>
-            <button onClick={() => setNewCredential(null)}>Done, I've saved it</button>
-          </div>
-        )}
-      </Show>
-
-      <Show when={ipClients()} fallback={<p>Loading…</p>}>
+      <Show when={ipClients()} fallback={<p class="text-muted-foreground">Loading…</p>}>
         {(items) => (
-          <table>
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Status</th>
-                <th>Last known IPv4</th>
-                <th>Last known IPv6</th>
-                <th>Notifications</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Show
+            when={items().length > 0}
+            fallback={
+              <EmptyState
+                message="You haven't added any devices yet."
+                actionLabel="Add your first device"
+                onAction={openWizard}
+              />
+            }
+          >
+            {/* Card grid at every width — multi-column on desktop, single column stacked on mobile (FR-001/FR-016). */}
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <For each={items()}>
                 {(client) => (
-                  <tr>
-                    <td>
-                      <a href={`/ip-clients/${client.ipClientId}/actions`}>{client.label}</a>
-                    </td>
-                    <td>{client.status}</td>
-                    <td>{client.lastKnownIPv4 ?? "—"}</td>
-                    <td>{client.lastKnownIPv6 ?? "—"}</td>
-                    <td>{client.notificationPreference}</td>
-                    <td>
-                      <Show when={client.status !== "decommissioned"}>
-                        <button onClick={() => handleToggle(client.ipClientId, client.status)}>
+                  <Card class="flex flex-col">
+                    <CardHeader>
+                      <div class="flex items-center justify-between gap-2">
+                        <CardTitle class="text-base">
+                          <a href={`/ip-clients/${client.ipClientId}/actions`} class="hover:underline">
+                            {client.label}
+                          </a>
+                        </CardTitle>
+                        <span
+                          class={cn(
+                            "text-xs",
+                            client.status === "enabled" ? "text-foreground" : "text-muted-foreground",
+                          )}
+                        >
+                          {STATUS_LABEL[client.status]}
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent class="flex-1">
+                      <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                        <dt class="text-muted-foreground">Last IPv4</dt>
+                        <dd class="font-mono text-xs">{client.lastKnownIPv4 ?? "—"}</dd>
+                        <dt class="text-muted-foreground">Last IPv6</dt>
+                        <dd class="font-mono text-xs">{client.lastKnownIPv6 ?? "—"}</dd>
+                        <dt class="text-muted-foreground">Notifications</dt>
+                        <dd>{NOTIFICATION_LABEL[client.notificationPreference]}</dd>
+                      </dl>
+                    </CardContent>
+                    <Show when={client.status !== "decommissioned"}>
+                      <CardFooter class="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleToggle(client.ipClientId, client.status)}>
                           {client.status === "enabled" ? "Disable" : "Enable"}
-                        </button>
-                        <button onClick={() => handleRotate(client.ipClientId)}>Rotate credential</button>
-                        <button onClick={() => handleDecommission(client.ipClientId)}>Decommission</button>
-                      </Show>
-                    </td>
-                  </tr>
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleRotate(client.ipClientId)}>
+                          Rotate credential
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDecommission(client.ipClientId)}>
+                          Decommission
+                        </Button>
+                      </CardFooter>
+                    </Show>
+                  </Card>
                 )}
               </For>
-            </tbody>
-          </table>
+            </div>
+          </Show>
         )}
       </Show>
+
+      <Dialog open={wizardOpen()} onOpenChange={setWizardOpen}>
+        <DialogContent class="max-w-lg">
+          <DialogHeader>
+            <DialogTitle class="sr-only">Add a device</DialogTitle>
+          </DialogHeader>
+          <DeviceWizard onDone={() => void handleWizardDone()} onCancel={() => setWizardOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rotatedCredential() !== null} onOpenChange={(open) => !open && setRotatedCredential(null)}>
+        <DialogContent class="max-w-lg">
+          <DialogHeader>
+            <DialogTitle class="sr-only">New reporting credential</DialogTitle>
+          </DialogHeader>
+          <Show when={rotatedCredential()}>
+            {(credential) => (
+              <ReviewCredentialStep
+                username={credential().username}
+                password={credential().password}
+                onDone={() => setRotatedCredential(null)}
+              />
+            )}
+          </Show>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

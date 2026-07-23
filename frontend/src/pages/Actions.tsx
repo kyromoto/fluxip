@@ -1,6 +1,13 @@
 import { useParams } from "@solidjs/router";
 import { createResource, createSignal, For, Show } from "solid-js";
-import { api } from "../services/api";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "~/components/ui/table";
+import { ErrorMessage } from "~/components/feedback/ErrorMessage";
+import { EmptyState } from "~/components/layout/EmptyState";
+import { ActionWizard, type ExistingAction } from "~/flows/action-wizard/ActionWizard";
+import { api } from "~/services/api";
 
 type AddressFamily = "ipv4" | "ipv6";
 
@@ -13,16 +20,36 @@ interface ActionSummary {
   status: "enabled" | "disabled" | "detached";
 }
 
-interface ProviderCredentialSummary {
-  credentialId: string;
-  provider: string;
-  label: string;
+const STATUS_LABEL: Record<ActionSummary["status"], string> = {
+  enabled: "Enabled",
+  disabled: "Disabled",
+  detached: "Detached",
+};
+
+const ADDRESS_FAMILY_LABEL: Record<AddressFamily, string> = {
+  ipv4: "IPv4",
+  ipv6: "IPv6",
+};
+
+function formatAddressFamilies(families: AddressFamily[]): string {
+  return families.map((f) => ADDRESS_FAMILY_LABEL[f]).join(" and ");
+}
+
+function toExistingAction(action: ActionSummary): ExistingAction {
+  return {
+    actionId: action.actionId,
+    providerCredentialId: action.config?.providerCredentialId ?? "",
+    zone: action.config?.zone ?? "",
+    recordName: action.config?.recordName ?? "",
+    ipv4: action.addressFamilies.includes("ipv4"),
+    ipv6: action.addressFamilies.includes("ipv6"),
+  };
 }
 
 export default function Actions() {
   const params = useParams<{ ipClientId: string }>();
 
-  const [actions, { refetch: refetchActions }] = createResource(
+  const [actions, { refetch }] = createResource(
     () => params.ipClientId,
     async (ipClientId) => {
       const res = await api.get<{ items: ActionSummary[] }>(`/ip-clients/${ipClientId}/actions`);
@@ -30,173 +57,168 @@ export default function Actions() {
     },
   );
 
-  const [credentials] = createResource(async () => {
-    const res = await api.get<{ items: ProviderCredentialSummary[] }>("/provider-credentials");
-    return res.items;
-  });
+  const [wizardTarget, setWizardTarget] = createSignal<"new" | ExistingAction | null>(null);
+  const [error, setError] = createSignal<unknown>(null);
 
-  const [zone, setZone] = createSignal("");
-  const [recordName, setRecordName] = createSignal("");
-  const [providerCredentialId, setProviderCredentialId] = createSignal("");
-  const [ipv4, setIpv4] = createSignal(true);
-  const [ipv6, setIpv6] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
-  const [editingActionId, setEditingActionId] = createSignal<string | null>(null);
-
-  function startEdit(action: ActionSummary) {
-    setEditingActionId(action.actionId);
-    setProviderCredentialId(action.config?.providerCredentialId ?? "");
-    setZone(action.config?.zone ?? "");
-    setRecordName(action.config?.recordName ?? "");
-    setIpv4(action.addressFamilies.includes("ipv4"));
-    setIpv6(action.addressFamilies.includes("ipv6"));
-  }
-
-  function cancelEdit() {
-    setEditingActionId(null);
-    setProviderCredentialId("");
-    setZone("");
-    setRecordName("");
-    setIpv4(true);
-    setIpv6(false);
-  }
-
-  async function handleAttach(e: Event) {
-    e.preventDefault();
-    setError(null);
-    const addressFamilies: AddressFamily[] = [
-      ...(ipv4() ? (["ipv4"] as const) : []),
-      ...(ipv6() ? (["ipv6"] as const) : []),
-    ];
-    const config = { providerCredentialId: providerCredentialId(), zone: zone(), recordName: recordName() };
-    try {
-      const editing = editingActionId();
-      if (editing) {
-        await api.put(`/actions/${editing}`, { addressFamilies, config });
-      } else {
-        await api.post(`/ip-clients/${params.ipClientId}/actions`, {
-          type: "update_dns_record",
-          addressFamilies,
-          config,
-        });
-      }
-      cancelEdit();
-      await refetchActions();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+  async function handleWizardDone() {
+    setWizardTarget(null);
+    await refetch();
   }
 
   async function handleToggle(actionId: string, status: ActionSummary["status"]) {
     setError(null);
     try {
       await api.post(`/actions/${actionId}/${status === "enabled" ? "disable" : "enable"}`);
-      await refetchActions();
+      await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
   async function handleDetach(actionId: string) {
     setError(null);
-    if (!confirm("Detach this Action? This is irreversible.")) return;
+    if (!confirm("Detach this action? This is irreversible.")) return;
     try {
       await api.delete(`/actions/${actionId}`);
-      await refetchActions();
+      await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
   return (
-    <div>
-      <h1>Actions</h1>
-
-      <form onSubmit={handleAttach}>
-        <h2>{editingActionId() ? "Reconfigure Action" : "Attach a DNS-Update Action"}</h2>
-        <label>
-          Provider Credential
-          <select value={providerCredentialId()} onChange={(e) => setProviderCredentialId(e.currentTarget.value)}>
-            <option value="">Select a credential…</option>
-            <For each={credentials()}>
-              {(cred) => (
-                <option value={cred.credentialId}>
-                  {cred.label} ({cred.provider})
-                </option>
-              )}
-            </For>
-          </select>
-        </label>
-        <label>
-          Hetzner Zone ID
-          <input value={zone()} onInput={(e) => setZone(e.currentTarget.value)} />
-        </label>
-        <label>
-          Record name
-          <input value={recordName()} onInput={(e) => setRecordName(e.currentTarget.value)} />
-        </label>
-        <label>
-          <input type="checkbox" checked={ipv4()} onChange={(e) => setIpv4(e.currentTarget.checked)} />
-          IPv4 (A record)
-        </label>
-        <label>
-          <input type="checkbox" checked={ipv6()} onChange={(e) => setIpv6(e.currentTarget.checked)} />
-          IPv6 (AAAA record)
-        </label>
-        <button type="submit">{editingActionId() ? "Save changes" : "Attach Action"}</button>
-        <Show when={editingActionId()}>
-          <button type="button" onClick={cancelEdit}>
-            Cancel
-          </button>
-        </Show>
-      </form>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between gap-4">
+        <h1 class="text-2xl font-semibold tracking-tight">Actions</h1>
+        <Button onClick={() => setWizardTarget("new")}>Add an action</Button>
+      </div>
 
       <Show when={error()}>
-        <p role="alert">{error()}</p>
+        <ErrorMessage error={error()} />
       </Show>
 
-      <Show when={actions()} fallback={<p>Loading…</p>}>
+      <Show when={actions()} fallback={<p class="text-muted-foreground">Loading…</p>}>
         {(items) => (
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Address families</th>
-                <th>Zone</th>
-                <th>Record</th>
-                <th>Status</th>
-                <th>History</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Show
+            when={items().length > 0}
+            fallback={
+              <EmptyState
+                message="This device has no actions configured yet."
+                actionLabel="Add your first action"
+                onAction={() => setWizardTarget("new")}
+              />
+            }
+          >
+            <div class="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Address families</TableHead>
+                    <TableHead>Zone</TableHead>
+                    <TableHead>Record</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>History</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <For each={items()}>
+                    {(action) => (
+                      <TableRow>
+                        <TableCell>Update DNS record</TableCell>
+                        <TableCell>{formatAddressFamilies(action.addressFamilies)}</TableCell>
+                        <TableCell>{action.config?.zone}</TableCell>
+                        <TableCell>{action.config?.recordName}</TableCell>
+                        <TableCell>{STATUS_LABEL[action.status]}</TableCell>
+                        <TableCell>
+                          <a href={`/actions/${action.actionId}/executions`} class="hover:underline">
+                            View history
+                          </a>
+                        </TableCell>
+                        <TableCell>
+                          <Show when={action.status !== "detached"}>
+                            <div class="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" onClick={() => setWizardTarget(toExistingAction(action))}>
+                                Edit
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleToggle(action.actionId, action.status)}>
+                                {action.status === "enabled" ? "Disable" : "Enable"}
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleDetach(action.actionId)}>
+                                Detach
+                              </Button>
+                            </div>
+                          </Show>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </For>
+                </TableBody>
+              </Table>
+            </div>
+
+            <div class="space-y-3 md:hidden">
               <For each={items()}>
                 {(action) => (
-                  <tr>
-                    <td>{action.type}</td>
-                    <td>{action.addressFamilies.join(", ")}</td>
-                    <td>{action.config?.zone}</td>
-                    <td>{action.config?.recordName}</td>
-                    <td>{action.status}</td>
-                    <td>
-                      <a href={`/actions/${action.actionId}/executions`}>View executions</a>
-                    </td>
-                    <td>
+                  <Card>
+                    <CardContent class="space-y-3 p-4">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-medium">Update DNS record</span>
+                        <span class="text-xs text-muted-foreground">{STATUS_LABEL[action.status]}</span>
+                      </div>
+                      <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                        <dt class="text-muted-foreground">Zone</dt>
+                        <dd>{action.config?.zone}</dd>
+                        <dt class="text-muted-foreground">Record</dt>
+                        <dd>{action.config?.recordName}</dd>
+                        <dt class="text-muted-foreground">Families</dt>
+                        <dd>{formatAddressFamilies(action.addressFamilies)}</dd>
+                      </dl>
+                      <a href={`/actions/${action.actionId}/executions`} class="text-sm hover:underline">
+                        View history
+                      </a>
                       <Show when={action.status !== "detached"}>
-                        <button onClick={() => startEdit(action)}>Edit</button>
-                        <button onClick={() => handleToggle(action.actionId, action.status)}>
-                          {action.status === "enabled" ? "Disable" : "Enable"}
-                        </button>
-                        <button onClick={() => handleDetach(action.actionId)}>Detach</button>
+                        <div class="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setWizardTarget(toExistingAction(action))}>
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleToggle(action.actionId, action.status)}>
+                            {action.status === "enabled" ? "Disable" : "Enable"}
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDetach(action.actionId)}>
+                            Detach
+                          </Button>
+                        </div>
                       </Show>
-                    </td>
-                  </tr>
+                    </CardContent>
+                  </Card>
                 )}
               </For>
-            </tbody>
-          </table>
+            </div>
+          </Show>
         )}
       </Show>
+
+      <Dialog open={wizardTarget() !== null} onOpenChange={(open) => !open && setWizardTarget(null)}>
+        <DialogContent class="max-w-lg">
+          <DialogHeader>
+            <DialogTitle class="sr-only">
+              {wizardTarget() === "new" ? "Add an action" : "Reconfigure action"}
+            </DialogTitle>
+          </DialogHeader>
+          <Show when={wizardTarget()}>
+            {(target) => (
+              <ActionWizard
+                ipClientId={params.ipClientId}
+                existingAction={target() === "new" ? undefined : (target() as ExistingAction)}
+                onDone={() => void handleWizardDone()}
+                onCancel={() => setWizardTarget(null)}
+              />
+            )}
+          </Show>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

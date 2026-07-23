@@ -1,5 +1,11 @@
 import { createResource, createSignal, For, Show } from "solid-js";
-import { api, ApiError } from "../services/api";
+import { ErrorMessage } from "~/components/feedback/ErrorMessage";
+import { EmptyState } from "~/components/layout/EmptyState";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
+import { TextField, TextFieldDescription, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
+import { api, ApiError } from "~/services/api";
 
 interface NotificationChannelInfo {
   type: "email";
@@ -11,6 +17,12 @@ interface IpClientSummary {
   label: string;
   notificationPreference: "off" | "failures_only" | "all";
 }
+
+const PREFERENCE_OPTIONS: { value: IpClientSummary["notificationPreference"]; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "failures_only", label: "Failures only" },
+  { value: "all", label: "All updates" },
+];
 
 async function fetchChannel(): Promise<NotificationChannelInfo | null> {
   try {
@@ -30,7 +42,7 @@ export default function NotificationSettings() {
   const [channel, { refetch: refetchChannel }] = createResource(fetchChannel);
   const [ipClients, { refetch: refetchIpClients }] = createResource(fetchIpClients);
   const [addresses, setAddresses] = createSignal("");
-  const [error, setError] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<unknown>(null);
 
   function addressList(): string[] {
     return addresses()
@@ -51,7 +63,7 @@ export default function NotificationSettings() {
       setAddresses("");
       await refetchChannel();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
@@ -61,7 +73,7 @@ export default function NotificationSettings() {
       await api.delete("/notification-channel");
       await refetchChannel();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
@@ -71,76 +83,94 @@ export default function NotificationSettings() {
       await api.put(`/ip-clients/${ipClientId}/notification-preference`, { preference });
       await refetchIpClients();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     }
   }
 
   return (
-    <div>
-      <h1>Notification Settings</h1>
+    <div class="space-y-6">
+      <h1 class="text-2xl font-semibold tracking-tight">Notifications</h1>
 
       <Show when={error()}>
-        <p role="alert">{error()}</p>
+        <ErrorMessage error={error()} />
       </Show>
 
-      <section>
-        <h2>Email channel</h2>
-        <Show when={channel()}>
-          {(info) => (
-            <div>
-              <p>Currently notifying: {info().addresses.join(", ")}</p>
-              <button onClick={handleDelete}>Remove channel</button>
-            </div>
-          )}
-        </Show>
-        <form onSubmit={handleSave}>
-          <label>
-            Email address(es), comma-separated
-            <input value={addresses()} onInput={(e) => setAddresses(e.currentTarget.value)} placeholder="you@example.com" />
-          </label>
-          <button type="submit">{channel() ? "Update addresses" : "Register channel"}</button>
-        </form>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Email address</CardTitle>
+          <CardDescription>Where we'll send updates about your devices' automations.</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <Show when={channel()}>
+            {(info) => (
+              <div class="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
+                <span>{info().addresses.join(", ")}</span>
+                <Button size="sm" variant="outline" onClick={() => void handleDelete()}>
+                  Remove
+                </Button>
+              </div>
+            )}
+          </Show>
+          <form onSubmit={handleSave} class="space-y-4">
+            <TextField value={addresses()} onChange={setAddresses}>
+              <TextFieldLabel>Email address(es)</TextFieldLabel>
+              <TextFieldInput placeholder="you@example.com" />
+              <TextFieldDescription>Separate multiple addresses with commas.</TextFieldDescription>
+            </TextField>
+            <Button type="submit">{channel() ? "Update addresses" : "Save"}</Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <section>
-        <h2>Per-IP-Client preference</h2>
-        <Show when={ipClients()} fallback={<p>Loading…</p>}>
-          {(items) => (
-            <table>
-              <thead>
-                <tr>
-                  <th>Label</th>
-                  <th>Notify on</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={items()}>
-                  {(client) => (
-                    <tr>
-                      <td>{client.label}</td>
-                      <td>
-                        <select
-                          value={client.notificationPreference}
-                          onChange={(e) =>
-                            handlePreferenceChange(
-                              client.ipClientId,
-                              e.currentTarget.value as IpClientSummary["notificationPreference"],
-                            )
-                          }
+      <Card>
+        <CardHeader>
+          <CardTitle>Per-device preference</CardTitle>
+          <CardDescription>Choose when each device should notify you.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Show when={ipClients()} fallback={<p class="text-muted-foreground">Loading…</p>}>
+            {(items) => (
+              <Show
+                when={items().length > 0}
+                fallback={
+                  <EmptyState
+                    message="You haven't added any devices yet."
+                    actionLabel="Go to Devices"
+                    onAction={() => (window.location.href = "/ip-clients")}
+                  />
+                }
+              >
+                <ul class="space-y-3">
+                  <For each={items()}>
+                    {(client) => (
+                      <li class="flex items-center justify-between gap-4">
+                        <span class="text-sm font-medium">{client.label}</span>
+                        <Select<{ value: IpClientSummary["notificationPreference"]; label: string }>
+                          options={PREFERENCE_OPTIONS}
+                          optionValue="value"
+                          optionTextValue="label"
+                          value={PREFERENCE_OPTIONS.find((o) => o.value === client.notificationPreference) ?? null}
+                          onChange={(opt) => opt && handlePreferenceChange(client.ipClientId, opt.value)}
+                          itemComponent={(itemProps) => (
+                            <SelectItem item={itemProps.item}>{itemProps.item.rawValue.label}</SelectItem>
+                          )}
                         >
-                          <option value="off">Off</option>
-                          <option value="failures_only">Failures only</option>
-                          <option value="all">All updates</option>
-                        </select>
-                      </td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-          )}
-        </Show>
-      </section>
+                          <SelectTrigger class="w-40">
+                            <SelectValue<{ value: string; label: string }>>
+                              {(state) => state.selectedOption()?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent />
+                        </Select>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            )}
+          </Show>
+        </CardContent>
+      </Card>
     </div>
   );
 }

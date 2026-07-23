@@ -1,6 +1,10 @@
 import { useParams } from "@solidjs/router";
 import { createResource, createSignal, For, Show } from "solid-js";
-import { api } from "../services/api";
+import { ErrorMessage } from "~/components/feedback/ErrorMessage";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "~/components/ui/table";
+import { api } from "~/services/api";
 
 interface ExecutionSummary {
   executionId: string;
@@ -13,6 +17,17 @@ interface ExecutionSummary {
   error: string | null;
 }
 
+const TRIGGERED_BY_LABEL: Record<ExecutionSummary["triggeredBy"], string> = {
+  ip_change: "Automatic (address changed)",
+  manual: "Manual re-run",
+};
+
+const STATUS_LABEL: Record<ExecutionSummary["status"], string> = {
+  running: "In progress",
+  succeeded: "Succeeded",
+  failed: "Failed",
+};
+
 export default function ExecutionHistory() {
   const params = useParams<{ actionId: string }>();
   const [executions, { refetch }] = createResource(
@@ -22,7 +37,7 @@ export default function ExecutionHistory() {
       return res.items;
     },
   );
-  const [error, setError] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<unknown>(null);
   const [rerunning, setRerunning] = createSignal(false);
 
   async function handleRerun() {
@@ -32,52 +47,84 @@ export default function ExecutionHistory() {
       await api.post(`/actions/${params.actionId}/run`);
       await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     } finally {
       setRerunning(false);
     }
   }
 
   return (
-    <div>
-      <h1>Execution History</h1>
-
-      <button onClick={handleRerun} disabled={rerunning()}>
-        Manually re-run using last known IP
-      </button>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between gap-4">
+        <h1 class="text-2xl font-semibold tracking-tight">Update history</h1>
+        <Button onClick={() => void handleRerun()} disabled={rerunning()}>
+          {rerunning() ? "Re-running…" : "Re-run using last known address"}
+        </Button>
+      </div>
 
       <Show when={error()}>
-        <p role="alert">{error()}</p>
+        <ErrorMessage error={error()} />
       </Show>
 
-      <Show when={executions()} fallback={<p>Loading…</p>}>
+      <Show when={executions()} fallback={<p class="text-muted-foreground">Loading…</p>}>
         {(items) => (
-          <table>
-            <thead>
-              <tr>
-                <th>Triggered by</th>
-                <th>IP values used</th>
-                <th>Status</th>
-                <th>Attempt</th>
-                <th>Error</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <div class="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Triggered by</TableHead>
+                    <TableHead>Address used</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Attempt</TableHead>
+                    <TableHead>Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <For each={items()}>
+                    {(execution) => (
+                      <TableRow>
+                        <TableCell>{TRIGGERED_BY_LABEL[execution.triggeredBy]}</TableCell>
+                        <TableCell class="font-mono text-xs">
+                          {execution.ipValuesUsed.ipv4 ?? "—"} / {execution.ipValuesUsed.ipv6 ?? "—"}
+                        </TableCell>
+                        <TableCell>{STATUS_LABEL[execution.status]}</TableCell>
+                        <TableCell>{execution.attempt}</TableCell>
+                        <TableCell>{execution.error ?? "—"}</TableCell>
+                      </TableRow>
+                    )}
+                  </For>
+                </TableBody>
+              </Table>
+            </div>
+
+            <div class="space-y-3 md:hidden">
               <For each={items()}>
                 {(execution) => (
-                  <tr>
-                    <td>{execution.triggeredBy}</td>
-                    <td>
-                      {execution.ipValuesUsed.ipv4 ?? "—"} / {execution.ipValuesUsed.ipv6 ?? "—"}
-                    </td>
-                    <td>{execution.status}</td>
-                    <td>{execution.attempt}</td>
-                    <td>{execution.error ?? "—"}</td>
-                  </tr>
+                  <Card>
+                    <CardContent class="space-y-2 p-4 text-sm">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-medium">{TRIGGERED_BY_LABEL[execution.triggeredBy]}</span>
+                        <span class="text-xs text-muted-foreground">{STATUS_LABEL[execution.status]}</span>
+                      </div>
+                      <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                        <dt class="text-muted-foreground">Address used</dt>
+                        <dd class="font-mono text-xs">
+                          {execution.ipValuesUsed.ipv4 ?? "—"} / {execution.ipValuesUsed.ipv6 ?? "—"}
+                        </dd>
+                        <dt class="text-muted-foreground">Attempt</dt>
+                        <dd>{execution.attempt}</dd>
+                        <Show when={execution.error}>
+                          <dt class="text-muted-foreground">Details</dt>
+                          <dd>{execution.error}</dd>
+                        </Show>
+                      </dl>
+                    </CardContent>
+                  </Card>
                 )}
               </For>
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </Show>
     </div>

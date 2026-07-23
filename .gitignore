@@ -12,3 +12,7 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+playwright-report/
+test-results/
+blob-report/
+playwright/.auth/

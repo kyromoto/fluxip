@@ -11,7 +11,7 @@ See `specs/001-ip-change-automation/` for the full spec (`spec.md`), architectur
 - **Async pipeline**: BullMQ (Redis-backed) — a 30s debounce window per IP Client absorbs flapping, then fans out one execution job per enabled Action with deterministic, idempotent job IDs.
 - **Projections**: Redis read models (device lists, execution history) — always rebuildable from Postgres, never consulted for business decisions.
 - **Auth**: [Logto](https://logto.io/) as the OIDC identity provider — FluxIP verifies JWTs via JWKS and never stores a password. In-app password change/account deletion are proxied to Logto's Management API.
-- **Frontend**: SolidJS + Vite.
+- **Frontend**: SolidJS + Vite, styled with Tailwind CSS and [Kobalte](https://kobalte.dev/)/[Solid UI](https://www.solid-ui.com/) components (copied into the repo, not installed as a library) — auto dark/light via Tailwind's `media` strategy, no manual toggle. Account onboarding, Trigger Device creation, and Action configuration are guided multi-step flows; everything else stays a direct, single-step view. See `specs/003-end-user-ui-redesign/` for the full spec/plan/research.
 - **Metrics**: Prometheus-compatible `/metrics`, including per-aggregate replay duration/event-count histograms (`fluxip_replay_duration_seconds`, `fluxip_replay_events_total`), so aggregates that get slower to replay over time are visible before snapshotting is ever needed.
 
 ## Prerequisites
@@ -101,7 +101,7 @@ git push origin v0.1.0
 
 ```
 backend/    Hono API, event-sourced domain model, BullMQ workers, adapters (Postgres, Logto, Hetzner DNS, email)
-frontend/   SolidJS UI (IP Clients, Actions, execution history, notifications, account settings)
+frontend/   SolidJS UI (devices, actions, execution history, notifications, account settings) — Tailwind/Kobalte/Solid UI, guided wizards for onboarding/device/action setup
 specs/      Spec-Kit artifacts: spec, plan, research, data model, contracts, tasks
 deploy/     Deployment-time assets (e.g. Postgres init scripts for the Logto database)
 ```
