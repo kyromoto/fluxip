@@ -42,7 +42,7 @@ services:
       - "3002:3002"
 
   bull-board:
-    image: deadly0/bull-board:latest
+    image: venatum/bull-board
     depends_on:
       redis:
         condition: service_healthy

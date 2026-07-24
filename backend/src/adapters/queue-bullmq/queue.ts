@@ -24,6 +24,11 @@ export function createDebounceQueue(config: Config): Queue {
 /**
  * Retry/backoff per research.md §5: bounded exponential backoff, tunable via env,
  * applied as the queue's default job options so every enqueued execution inherits it (FR-021).
+ *
+ * stackTraceLimit: 0 keeps job.failedReason (the executor's own error message,
+ * e.g. "Hetzner DNS API rejected ..." from action-execution-worker.ts) as the
+ * diagnostic surface in Bull Board, without BullMQ also attaching a raw
+ * Node stack trace to every failed attempt.
  */
 export function createActionExecutionQueue(config: Config): Queue {
   return new Queue(QUEUE_NAMES.actionExecution, {
@@ -31,6 +36,7 @@ export function createActionExecutionQueue(config: Config): Queue {
     defaultJobOptions: {
       attempts: config.actionRetryAttempts,
       backoff: { type: "exponential", delay: config.actionRetryBaseDelayMs },
+      stackTraceLimit: 0,
     },
   });
 }
