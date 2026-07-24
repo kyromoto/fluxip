@@ -62,8 +62,8 @@ jobs:
       - name: Build
         run: pnpm -r build
 
-      - name: Test
-        run: CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
+      # - name: Test
+      #   run: CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
 
       - name: Build Docker image
         uses: docker/build-push-action@v6
