@@ -5,31 +5,31 @@ import type {
   ActionExecutor,
 } from "../../../ports/action-executor.js";
 
-// Hetzner consolidated the DNS API under api.hetzner.com/v1/dns (Bearer auth) —
-// the previous dns.hetzner.com/api/v1 host now 301-redirects every request
-// (regardless of path or token validity) to the Hetzner Console web app.
-const HETZNER_API_BASE = "https://api.hetzner.com/v1/dns";
-
-interface HetznerRecord {
-  id: string;
-  type: string;
-  name: string;
-  value: string;
-  zone_id: string;
-  ttl?: number;
-}
+// FR-035: all Hetzner communication MUST go through the current Hetzner
+// Cloud API — the older, separate Hetzner DNS API MUST NOT be used, not even
+// as a fallback (spec.md Clarifications, Session 2026-07-24; research.md §18).
+//
+// The per-rrset `set_records` action below is the manually verified working
+// endpoint (spec.md Session 2026-07-24 correction) — not the generic
+// zones/rrsets collection endpoint an earlier revision of this adapter used.
+const HETZNER_API_BASE = "https://api.hetzner.cloud/v1";
 
 export interface HetznerDnsResolvedConfig {
   apiToken: string;
-  /** The Hetzner DNS zone ID (found in the Hetzner Console), not the zone name. */
-  zoneId: string;
+  /** The Hetzner Cloud DNS zone name (e.g. "example.com"). */
+  zoneName: string;
+  /** The rrset name within the zone, e.g. "@" for the zone apex or "home". */
   recordName: string;
+  /** CLOUDEVENTS_SOURCE with its protocol prefix stripped, attributing the update in Hetzner's own record comment. */
+  sourceLabel: string;
 }
 
 /**
- * Updates an existing A and/or AAAA record only (FR-008 — never creates new
- * records). Which families to update is decided upstream by the worker
- * (FR-026/FR-027); this adapter just does whatever ipValues it's given.
+ * Updates an existing A and/or AAAA rrset only (FR-008 — never creates new
+ * records): `set_records` acts on a specific, already-existing rrset
+ * resource and fails rather than creating one if it doesn't exist. Which
+ * families to update is decided upstream by the worker (FR-026/FR-027); this
+ * adapter just does whatever ipValues it's given.
  */
 export class HetznerDnsExecutor implements ActionExecutor<HetznerDnsResolvedConfig> {
   readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
@@ -41,11 +41,11 @@ export class HetznerDnsExecutor implements ActionExecutor<HetznerDnsResolvedConf
     const updates: string[] = [];
 
     if (ipValues.ipv4) {
-      await this.updateRecord(config, "A", ipValues.ipv4);
+      await this.setRecords(config, "A", ipValues.ipv4);
       updates.push(`A=${ipValues.ipv4}`);
     }
     if (ipValues.ipv6) {
-      await this.updateRecord(config, "AAAA", ipValues.ipv6);
+      await this.setRecords(config, "AAAA", ipValues.ipv6);
       updates.push(`AAAA=${ipValues.ipv6}`);
     }
     if (updates.length === 0) {
@@ -55,39 +55,23 @@ export class HetznerDnsExecutor implements ActionExecutor<HetznerDnsResolvedConf
     return { summary: `Updated Hetzner DNS record "${config.recordName}": ${updates.join(", ")}` };
   }
 
-  private async updateRecord(
-    config: HetznerDnsResolvedConfig,
-    type: "A" | "AAAA",
-    value: string,
-  ): Promise<void> {
-    const record = await this.findRecord(config, type);
-    if (!record) {
-      throw new Error(
-        `No existing ${type} record named "${config.recordName}" found in zone ${config.zoneId}`,
-      );
-    }
+  private async setRecords(config: HetznerDnsResolvedConfig, type: "A" | "AAAA", value: string): Promise<void> {
+    // Not percent-encoded: DNS zone/record names (including the literal "@"
+    // zone-apex token) only ever contain characters already valid unencoded
+    // in a URL path segment, and the manually verified working request uses
+    // a literal "@", not "%40".
+    const url = `${HETZNER_API_BASE}/zones/${config.zoneName}/rrsets/${config.recordName}/${type}/actions/set_records`;
+    const comment = `${config.sourceLabel} | ${new Date().toISOString()}`;
 
     await this.requestJson(
-      `${HETZNER_API_BASE}/records/${record.id}`,
+      url,
       {
-        method: "PUT",
+        method: "POST",
         headers: { Authorization: `Bearer ${config.apiToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ value, ttl: record.ttl, type, name: record.name, zone_id: config.zoneId }),
+        body: JSON.stringify({ records: [{ value, comment }] }),
       },
-      "the record update",
+      "the rrset update",
     );
-  }
-
-  private async findRecord(
-    config: HetznerDnsResolvedConfig,
-    type: "A" | "AAAA",
-  ): Promise<HetznerRecord | null> {
-    const body = await this.requestJson<{ records: HetznerRecord[] }>(
-      `${HETZNER_API_BASE}/records?zone_id=${config.zoneId}`,
-      { headers: { Authorization: `Bearer ${config.apiToken}` } },
-      "the record lookup",
-    );
-    return body.records.find((r) => r.type === type && r.name === config.recordName) ?? null;
   }
 
   /**
@@ -103,12 +87,12 @@ export class HetznerDnsExecutor implements ActionExecutor<HetznerDnsResolvedConf
 
     if (!contentType.includes("application/json")) {
       throw new Error(
-        `Hetzner DNS API returned a non-JSON response for ${context} ` +
+        `Hetzner Cloud API returned a non-JSON response for ${context} ` +
           `(status ${response.status}, content-type "${contentType || "none"}"): ${rawBody.slice(0, 200)}`,
       );
     }
     if (!response.ok) {
-      throw new Error(`Hetzner DNS API rejected ${context} (${response.status}): ${rawBody.slice(0, 500)}`);
+      throw new Error(`Hetzner Cloud API rejected ${context} (${response.status}): ${rawBody.slice(0, 500)}`);
     }
     return JSON.parse(rawBody) as T;
   }

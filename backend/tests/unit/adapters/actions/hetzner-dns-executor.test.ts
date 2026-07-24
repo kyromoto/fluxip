@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HetznerDnsExecutor } from "../../../../src/adapters/actions/hetzner-dns/hetzner-dns-executor.js";
 
-const config = { apiToken: "test-token", zoneId: "zone1", recordName: "home.example.com" };
+const config = { apiToken: "test-token", zoneName: "kyromoto.de", recordName: "@", sourceLabel: "fluxip.kyro.space" };
 
 describe("HetznerDnsExecutor", () => {
   const originalFetch = global.fetch;
@@ -21,35 +21,55 @@ describe("HetznerDnsExecutor", () => {
 
     const executor = new HetznerDnsExecutor();
     await expect(executor.execute(config, { ipv4: "203.0.113.1" })).rejects.toThrow(
-      /non-JSON response for the record lookup \(status 200, content-type "text\/html"\): <!doctype html>/,
+      /non-JSON response for the rrset update \(status 200, content-type "text\/html"\): <!doctype html>/,
     );
   });
 
   it("fails with the API's JSON error body (not a raw parse error) on a non-2xx JSON response", async () => {
     global.fetch = vi.fn().mockResolvedValue(
-      Response.json({ error: { code: "unauthorized", message: "the token you have provided is invalid" } }, { status: 401 }),
+      Response.json({ error: { code: "not_found", message: "rrset not found" } }, { status: 404 }),
     );
 
     const executor = new HetznerDnsExecutor();
     await expect(executor.execute(config, { ipv4: "203.0.113.1" })).rejects.toThrow(
-      /rejected the record lookup \(401\).*unauthorized.*invalid/,
+      /rejected the rrset update \(404\).*not_found.*rrset not found/,
     );
   });
 
-  it("finds and updates a matching A record on a healthy JSON API", async () => {
+  it("calls the set_records action at the verified endpoint with a dynamic comment", async () => {
+    let capturedUrl = "";
+    let capturedBody: { records: { value: string; comment: string }[] } | undefined;
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
-      if (init?.method === "PUT") {
-        return Promise.resolve(Response.json({ record: { id: "rec1" } }));
-      }
-      return Promise.resolve(
-        Response.json({
-          records: [{ id: "rec1", type: "A", name: "home.example.com", value: "old", zone_id: "zone1", ttl: 300 }],
-        }),
-      );
+      capturedUrl = url;
+      capturedBody = JSON.parse(init?.body as string);
+      return Promise.resolve(Response.json({ action: { id: 1, status: "success" } }));
+    });
+
+    const before = Date.now();
+    const executor = new HetznerDnsExecutor();
+    const result = await executor.execute(config, { ipv4: "203.0.113.1" });
+    const after = Date.now();
+
+    expect(capturedUrl).toBe("https://api.hetzner.cloud/v1/zones/kyromoto.de/rrsets/@/A/actions/set_records");
+    expect(capturedBody?.records).toEqual([{ value: "203.0.113.1", comment: expect.stringMatching(/^fluxip\.kyro\.space \| /) }]);
+    const commentTimestamp = new Date(capturedBody!.records[0].comment.split(" | ")[1]).getTime();
+    expect(commentTimestamp).toBeGreaterThanOrEqual(before);
+    expect(commentTimestamp).toBeLessThanOrEqual(after);
+    expect(result.summary).toContain("A=203.0.113.1");
+  });
+
+  it("updates both A and AAAA rrsets with independent set_records calls when both address families are supplied", async () => {
+    const calledTypes: string[] = [];
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      calledTypes.push(url.includes("/A/actions/") ? "A" : "AAAA");
+      return Promise.resolve(Response.json({ action: { id: 1, status: "success" } }));
     });
 
     const executor = new HetznerDnsExecutor();
-    const result = await executor.execute(config, { ipv4: "203.0.113.1" });
+    const result = await executor.execute(config, { ipv4: "203.0.113.1", ipv6: "2001:db8::1" });
+
+    expect(calledTypes).toEqual(["A", "AAAA"]);
     expect(result.summary).toContain("A=203.0.113.1");
+    expect(result.summary).toContain("AAAA=2001:db8::1");
   });
 });

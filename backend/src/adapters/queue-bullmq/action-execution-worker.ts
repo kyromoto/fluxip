@@ -167,7 +167,7 @@ async function resolveDnsExecutorConfig(
   deps: ActionExecutionWorkerDeps,
   tenantId: string,
   config: UpdateDnsRecordConfig,
-): Promise<{ apiToken: string; zoneId: string; recordName: string }> {
+): Promise<{ apiToken: string; zoneName: string; recordName: string; sourceLabel: string }> {
   const { state: credentialState } = await loadAggregate(
     deps.eventStore,
     {
@@ -183,8 +183,9 @@ async function resolveDnsExecutorConfig(
   }
   return {
     apiToken: decryptSecret(credentialState.encryptedSecret, deps.config.credentialEncryptionKey),
-    zoneId: config.zone,
+    zoneName: config.zone,
     recordName: config.recordName,
+    sourceLabel: deps.config.cloudEventsSource.replace(/^https?:\/\//, ""),
   };
 }
 

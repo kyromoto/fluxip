@@ -18,7 +18,7 @@ See `specs/001-ip-change-automation/` for the full spec (`spec.md`), architectur
 
 - Docker + Docker Compose
 - [pnpm](https://pnpm.io/) (via `corepack enable`) for local (non-Docker) development
-- A Hetzner DNS zone with an existing A/AAAA record, and a Hetzner API token for it (for the DNS-Update Action)
+- A Hetzner DNS zone with an existing A/AAAA record, and a Hetzner **Cloud API** token for it (for the DNS-Update Action) — tokens issued by the older, separate DNS Console/API are not accepted (FR-035)
 
 ## Configuration
 
@@ -31,7 +31,7 @@ cp .env.example .env
 Notably:
 
 - `CLOUDEVENTS_SOURCE` / `CLOUDEVENTS_TYPE_PREFIX` — required, no hardcoded defaults (every event's CloudEvents envelope is built from these).
-- `CREDENTIAL_ENCRYPTION_KEY` — a 32-byte, base64-encoded key (`openssl rand -base64 32`) used to encrypt Provider Credential secrets (e.g. Hetzner API tokens) at rest. IP Client reporting credentials are never encrypted or logged — they're always system-generated and only a salted hash is ever persisted.
+- `CREDENTIAL_ENCRYPTION_KEY` — a 32-byte, base64-encoded key (`openssl rand -base64 32`) used to encrypt Provider Credential secrets (e.g. Hetzner Cloud API tokens) at rest. IP Client reporting credentials are never encrypted or logged — they're always system-generated and only a salted hash is ever persisted.
 - `LOGTO_ENDPOINT`, `LOGTO_MANAGEMENT_CLIENT_ID`/`_SECRET`/`_API_BASE_URL` — Logto OIDC + Management API (for in-app password change).
 - `SMTP_*` / `NOTIFICATION_FROM_ADDRESS` — outbound email for optional per-account notifications.
 

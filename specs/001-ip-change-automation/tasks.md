@@ -240,6 +240,26 @@ With multiple developers, after Foundational completes: Developer A takes US1's 
 
 ---
 
+## Phase 7: Convergence
+
+- [X] T082 Rewrite the Hetzner ActionExecutor adapter to call the Hetzner Cloud API's `zones`/`rrsets` resources (resolve the zone via `GET /v1/zones?name={zone}`, then read/upsert the A/AAAA rrset via `/v1/zones/{zone_id}/rrsets`, Bearer auth with a Cloud API token) instead of the legacy `https://api.hetzner.com/v1/dns` `/records` endpoints, preserving the existing must-already-exist pre-flight check, in backend/src/adapters/actions/hetzner-dns/hetzner-dns-executor.ts per FR-035 (contradicts) — also renamed `HetznerDnsResolvedConfig.zoneId` → `zoneName` (and its sole call site in action-execution-worker.ts) since the Cloud API resolves zones by name, not by the opaque ID the old field name implied
+- [X] T083 Update the adapter's unit tests to mock the Cloud API's `zones`/`rrsets` request/response shape and updated error-context strings, replacing the legacy `/records`+`zone_id` fixtures, in backend/tests/unit/adapters/actions/hetzner-dns-executor.test.ts per FR-035 (partial) — 5/5 tests pass, including two new cases (zone-not-found, rrset-not-found preserving FR-008's no-creation rule)
+- [X] T084 Update Hetzner API token references in README.md and .env.example to specify a Hetzner Cloud API token (not the legacy DNS Console/API token format), consistent with quickstart.md and data-model.md per FR-035 (partial)
+
+---
+
+## Phase 8: Bugfix — Corrected Hetzner Cloud API Endpoint
+
+**Context**: T082's `zones`/`rrsets`-collection implementation of FR-035 (Cloud API only) did not actually update DNS records correctly. The user manually verified the real working request against a live zone/token and reported the exact correct shape.
+
+- [X] T085 Replace the `zones`/`rrsets`-collection call (`GET /v1/zones?name=`, then `GET`/`POST /v1/zones/{zone_id}/rrsets`) with the manually verified, working per-rrset `set_records` action (`POST /v1/zones/{zone}/rrsets/{name}/{type}/actions/set_records`), dropping the now-unneeded zone-ID-resolution and rrset-listing calls, in backend/src/adapters/actions/hetzner-dns/hetzner-dns-executor.ts per FR-035 (contradicts — T082's implementation, though intent-correct, used an incorrect/non-working endpoint shape); the request body's `comment` field is composed dynamically per execution from `CLOUDEVENTS_SOURCE` (protocol stripped, threaded through from `deps.config.cloudEventsSource` in action-execution-worker.ts as new field `sourceLabel`) and the current execution timestamp (`new Date().toISOString()`, computed fresh per address-family call, never hardcoded)
+- [X] T086 Update the adapter's unit tests to assert the exact verified request (URL, method, body shape including the dynamic comment) instead of the superseded `zones`/`rrsets`-collection mocks, in backend/tests/unit/adapters/actions/hetzner-dns-executor.test.ts per FR-035 (partial) — 4/4 tests pass, including one asserting the comment's timestamp falls within the actual call's execution window
+- [X] T087 Update research.md §18 to document the corrected, manually verified endpoint and request shape, replacing the incorrect `zones`/`rrsets`-collection decision record, per FR-035 (partial)
+
+**Verification performed**: `tsc --noEmit` clean across the whole backend; `eslint src/` clean; full `tests/unit/` suite passes (6 files, 15 tests) — including a test asserting the exact URL `https://api.hetzner.cloud/v1/zones/kyromoto.de/rrsets/@/A/actions/set_records` and that the request body's `records[0].comment` is `"<sourceLabel> | <ISO-8601 timestamp>"` with the timestamp falling within the actual call's execution window (proving it isn't hardcoded). **Not performed**: a live network test against the real Hetzner Cloud API — no Provider Credential token was available in this environment (Provider Credentials are stored encrypted in Postgres via the running app, not in `.env`, and none was supplied). The user's own manual verification of the exact request shape (method/URL/body) is what this fix was built to match; the unit test asserts byte-for-byte conformance to that verified shape, but an actual live DNS update was not re-confirmed here.
+
+---
+
 ## Notes
 
 - [P] tasks = different files, no dependencies

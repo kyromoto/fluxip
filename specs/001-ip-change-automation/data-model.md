@@ -112,7 +112,7 @@ One independent run of one `action`, for one triggering cause. Given its own agg
 
 ## Aggregate: `provider_credential`
 
-A user-owned secret used by one or more of that user's Actions to authenticate against a third-party provider (e.g., a Hetzner API token).
+A user-owned secret used by one or more of that user's Actions to authenticate against a third-party provider (e.g., a Hetzner Cloud API token — research.md §18; the older, separate Hetzner DNS Console/API token format is never accepted, per FR-035).
 
 **Derived state**:
 

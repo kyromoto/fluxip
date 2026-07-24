@@ -7,7 +7,7 @@ This is a validation/run guide, not an implementation guide — it proves the fe
 - Docker + Docker Compose
 - A `docker-compose.yml` (created during implementation) bringing up: the FluxIP app container, Postgres, Redis, and Logto
 - Environment variables set per `plan.md`'s Constraints (at minimum `CLOUDEVENTS_SOURCE`, `CLOUDEVENTS_TYPE_PREFIX`, `DEFAULT_IP_CLIENT_LIMIT`, Postgres/Redis/Logto connection strings) — no config files, env vars only
-- A Hetzner DNS zone with an existing A/AAAA record you're willing to point at a test IP, and a Hetzner API token for it
+- A Hetzner DNS zone with an existing A/AAAA record you're willing to point at a test IP, and a **Hetzner Cloud API token** for it (issued from Hetzner Console; older DNS Console-issued tokens are not accepted — research.md §18, FR-035)
 - `curl` (or any HTTP client) and a way to obtain a Logto access token for a test user (Logto's own login flow)
 
 ## Setup
@@ -26,7 +26,7 @@ export TOKEN="<logto-access-token>"
 ## Scenario 1 — Automatic DNS update on IP change (validates User Story 1 / SC-001, SC-002)
 
 1. Store a Provider Credential:
-   `POST /api/provider-credentials` with your Hetzner API token.
+   `POST /api/provider-credentials` with your Hetzner Cloud API token.
 2. Register an IP Client:
    `POST /api/ip-clients` — capture the returned reporting credential (shown once, per `contracts/management-api.md`).
 3. Attach a DNS-Update Action to it:

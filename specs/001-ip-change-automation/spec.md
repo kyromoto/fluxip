@@ -26,6 +26,12 @@
 - Q: Soll es ein Limit für Trigger-Geräte pro Account geben? → A: Ja, ein per Deployment-Konfiguration einstellbares Default-Limit, das ein Administrator zur Laufzeit pro Account individuell anpassen kann.
 - Q: Sollen Benachrichtigungen zu Action-Ausführungen unterstützt werden? → A: Ja, bereits in v1 per E-Mail (weitere Kanäle später), optional, Kanal-Konfiguration pro Account, Erfolgs-/Fehler-Einstellung pro Trigger-Gerät.
 
+### Session 2026-07-24
+
+- Q: Über welche Hetzner-Schnittstelle soll das System mit Hetzner kommunizieren — sowohl für die DNS-Update-Action als auch für alle zukünftigen Hetzner-bezogenen Aktionstypen (z.B. Firewall-Regeln)? → A: Ausschließlich über die aktuelle Hetzner Cloud API (https://docs.hetzner.cloud/reference/cloud). Die ältere, separate Hetzner-DNS-API wird nicht verwendet, soweit die jeweils benötigte Funktionalität über die Cloud API verfügbar ist.
+- Q: What should happen if a capability the DNS-Update Action needs (e.g., updating an A/AAAA record) turns out not to be available via the Hetzner Cloud API? → A: No fallback, ever — Cloud API only. If a capability isn't available there, that capability is simply out of scope until Hetzner adds it to the Cloud API; the legacy Hetzner DNS API is never used, not even as a temporary exception.
+- Q: What should happen to Provider Credentials created before this constraint that may hold a legacy-format Hetzner token? → A: Not applicable — the system is not yet in production, so no pre-existing credentials exist; only the Hetzner Cloud API token format is ever valid.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Automatic DNS Update on IP Change (Priority: P1)
@@ -92,6 +98,7 @@ A user wants to confirm that their automation is actually working, understand wh
 - What happens when a user tries to add a Trigger Device beyond their account's current device limit? Creation is blocked until an administrator raises the account's limit or an existing device is removed.
 - What happens when a user closes or deletes their account? The account and all of its Trigger Devices, Actions, Provider Credentials, and Execution Records are deleted immediately and permanently, with no recovery period.
 - What happens when a Trigger Device has no Notification Channel configured, or notifications are disabled for it? No notification is sent for its executions; notifications are opt-in and off by default.
+- What happens when a capability a Hetzner-related Action needs (e.g., updating a DNS record) is not available via the Hetzner Cloud API? That capability is out of scope until Hetzner adds it to the Cloud API; the legacy Hetzner DNS API is never used as a fallback (FR-035).
 
 ## Requirements *(mandatory)*
 
@@ -131,6 +138,7 @@ A user wants to confirm that their automation is actually working, understand wh
 - **FR-032**: System MUST immediately and permanently delete a user's account, together with all of that account's Trigger Devices, Actions, Provider Credentials, and Execution Records, upon account closure — with no recovery/undo period.
 - **FR-033**: System MUST enforce a default maximum number of Trigger Devices allowed per user account, configurable at deployment time.
 - **FR-034**: System MUST allow an administrator to adjust the Trigger Device limit for an individual user account at runtime, overriding the deployment-wide default for that account.
+- **FR-035**: System MUST perform all communication with Hetzner — for the DNS-Update Action and for any future Hetzner-related Action type (e.g., a Firewall-Rule Action) — exclusively through the current Hetzner Cloud API. The older, separate Hetzner DNS API MUST NOT be used under any circumstance, including as a fallback; if a capability an Action needs is not available via the Cloud API, that capability is out of scope until Hetzner adds it there.
 
 ### Key Entities
 
@@ -164,3 +172,5 @@ A user wants to confirm that their automation is actually working, understand wh
 - Standard security practices apply by default: passwords are hashed, third-party credentials are encrypted at rest, and all management operations require authentication.
 - The identity provider used for authentication is the technical system of record for the user's password (it owns storage/hashing), but the password-change action itself remains a native, in-app experience in FluxIP's own UI — the application proxies the change to the identity provider rather than redirecting the user to a separate provider-hosted page.
 - An account is granted Administrator capability by having its identity-provider account assigned a dedicated role out-of-band (e.g., via the identity provider's own console); FluxIP does not provide its own workflow for granting or revoking this role in this iteration — it only checks for it (FR-034).
+- "Hetzner API token" (FR-016, Provider Credential) refers to a Hetzner Cloud API token, since all Hetzner integrations use the Cloud API exclusively (FR-035); the legacy, separate Hetzner DNS API and its own token type are out of scope.
+- The system has not yet gone to production, so no pre-existing Provider Credentials in a legacy Hetzner DNS API token format exist; no migration or credential-rotation path for old-format tokens is required — only the Hetzner Cloud API token format is ever valid.
