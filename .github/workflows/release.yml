@@ -65,14 +65,30 @@ jobs:
       # - name: Test
       #   run: CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
 
-      - name: Build Docker image
+      - name: Set up QEMU (for cross-arch arm64 builds)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Native (amd64) build only, loaded into the local Docker daemon for the
+      # smoke tests below — a multi-platform image can't be `--load`ed (the
+      # local image store only ever holds one platform's image), so this is
+      # necessarily single-arch. The real multi-arch build+push happens later,
+      # after these smoke tests pass, reusing this build's cached layers.
+      - name: Build Docker image (amd64, for smoke testing)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64
           push: false
           load: true
           tags: fluxip:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Smoke test backend role
         run: |
@@ -140,15 +156,25 @@ jobs:
       # behavior — a failing step stops the job before any later step runs —
       # is what enforces FR-006: this push step is only ever reached if build,
       # test, the Docker build, and both smoke tests all already succeeded.
-      - name: Push image to GHCR
+      #
+      # Builds and pushes both platforms directly to GHCR as one multi-arch
+      # manifest (can't `--load` a multi-platform image locally, so this is a
+      # separate build from the amd64-only one used for smoke testing above;
+      # `cache-from` reuses that build's amd64 layers so only arm64 — built
+      # under QEMU emulation — needs real work here).
+      - name: Build and push multi-arch image to GHCR
         if: steps.version.outputs.should-release == 'true'
-        run: |
-          set -e
-          IMAGE="ghcr.io/${{ github.repository_owner }}/fluxip"
-          docker tag fluxip:ci "$IMAGE:${{ steps.version.outputs.version }}"
-          docker tag fluxip:ci "$IMAGE:latest"
-          docker push "$IMAGE:${{ steps.version.outputs.version }}"
-          docker push "$IMAGE:latest"
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/fluxip:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/fluxip:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # Must be the last step in the job: only runs (and only creates a tag)
       # once the image push above has already succeeded (FR-014).
