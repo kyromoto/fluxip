@@ -6,15 +6,17 @@ export interface DebounceJobData {
   tenantId: string;
 }
 
-function debounceJobId(ipClientId: string): string {
-  // BullMQ custom job IDs cannot contain ":" (it uses colons as its own Redis key separator).
-  return `debounce-${ipClientId}`;
-}
-
 /**
  * Keyed by ip_client_id alone (not the reported IP value) so a burst of
  * different IPs collapses into a single settled evaluation instead of one
  * delayed job per distinct value (research.md §6, FR-024).
+ *
+ * Uses BullMQ's native debounce mode (deduplication + replace + extend)
+ * instead of a manual getJob/remove/add: the replace happens atomically
+ * server-side, and `keepLastIfActive` covers the case where a report lands
+ * while the previous settlement is already running — the latest data is
+ * queued to run again (with the full debounce delay re-applied) right
+ * after, instead of being silently dropped.
  */
 export async function scheduleDebounce(
   queue: Queue<DebounceJobData>,
@@ -22,10 +24,12 @@ export async function scheduleDebounce(
   ipClientId: string,
   tenantId: string,
 ): Promise<void> {
-  const jobId = debounceJobId(ipClientId);
-  const existing = await queue.getJob(jobId);
-  if (existing) {
-    await existing.remove().catch(() => undefined);
-  }
-  await queue.add("settle", { ipClientId, tenantId }, { jobId, delay: config.ipClientDebounceMs });
+  await queue.add(
+    "settle",
+    { ipClientId, tenantId },
+    {
+      delay: config.ipClientDebounceMs,
+      deduplication: { id: ipClientId, extend: true, replace: true, keepLastIfActive: true },
+    },
+  );
 }
