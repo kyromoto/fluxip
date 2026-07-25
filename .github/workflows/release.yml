@@ -89,6 +89,9 @@ jobs:
           push: false
           load: true
           tags: fluxip:ci
+          # Needed for the setarch -R (ASLR disable) workaround in the
+          # Dockerfile's build stage — see the comment there for why.
+          allow: security.insecure
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -184,8 +187,9 @@ jobs:
       # Builds and pushes both platforms directly to GHCR as one multi-arch
       # manifest (can't `--load` a multi-platform image locally, so this is a
       # separate build from the amd64-only one used for smoke testing above;
-      # `cache-from` reuses that build's amd64 layers so only arm64 — built
-      # under QEMU emulation — needs real work here).
+      # `cache-from` reuses that build's amd64 layers so only arm64 — native
+      # on this runner — needs real work here; amd64 is cached from the
+      # smoke-test build above and was built under QEMU emulation).
       - name: Build and push multi-arch image to GHCR
         if: steps.version.outputs.should-release == 'true'
         uses: docker/build-push-action@v6
@@ -197,6 +201,9 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/fluxip:${{ steps.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/fluxip:latest
+          # Needed for the setarch -R (ASLR disable) workaround in the
+          # Dockerfile's build stage — see the comment there for why.
+          allow: security.insecure
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

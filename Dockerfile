@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:22-slim AS base
 RUN corepack enable
 WORKDIR /app
@@ -11,14 +12,18 @@ FROM base AS build
 # setarch -R (disable ASLR) below covers the mmap-high-address variant seen
 # on arm64 hosts with 5-level paging (52-bit VA), where QEMU hands Go
 # addresses above the 48-bit boundary its lock-free stack assumes fit.
+# setarch needs CAP_SYS_ADMIN (personality() syscall), which BuildKit's
+# sandboxed executor only grants when --security=insecure is both allowed by
+# the builder and requested here — see the `allow: security.insecure` input
+# on the docker/build-push-action steps in release.yml.
 ENV GODEBUG=asyncpreemptoff=1
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
-RUN setarch "$(uname -m)" -R pnpm install --frozen-lockfile
+RUN --security=insecure setarch "$(uname -m)" -R pnpm install --frozen-lockfile
 COPY backend ./backend
 COPY frontend ./frontend
-RUN setarch "$(uname -m)" -R pnpm -r build
+RUN --security=insecure setarch "$(uname -m)" -R pnpm -r build
 
 FROM base AS prod-deps
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
