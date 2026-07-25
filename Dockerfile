@@ -3,17 +3,22 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS build
-# Works around a QEMU emulation bug (arm64 build on the amd64 CI runner) where
-# esbuild's Go binary crashes with "runtime: lfstack.push invalid packing" due
-# to mistranslated atomics during async goroutine preemption.
+# Works around a QEMU user-mode emulation bug where esbuild's Go binary
+# crashes with "runtime: lfstack.push invalid packing" / "fatal error:
+# lfstack.push" when cross-building under emulation (either direction: arm64
+# build on an amd64 CI runner, or amd64 build on an arm64 CI runner).
+# GODEBUG=asyncpreemptoff=1 covers signal-preemption-triggered crashes;
+# setarch -R (disable ASLR) below covers the mmap-high-address variant seen
+# on arm64 hosts with 5-level paging (52-bit VA), where QEMU hands Go
+# addresses above the 48-bit boundary its lock-free stack assumes fit.
 ENV GODEBUG=asyncpreemptoff=1
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
-RUN pnpm install --frozen-lockfile
+RUN setarch "$(uname -m)" -R pnpm install --frozen-lockfile
 COPY backend ./backend
 COPY frontend ./frontend
-RUN pnpm -r build
+RUN setarch "$(uname -m)" -R pnpm -r build
 
 FROM base AS prod-deps
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./

@@ -65,10 +65,12 @@ jobs:
       # - name: Test
       #   run: BACKEND_CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
 
-      - name: Set up QEMU (for cross-arch arm64 builds)
+      # The self-hosted runner is arm64, so it needs QEMU registered for
+      # amd64 to build/emulate that platform (not arm64 — that's native here).
+      - name: Set up QEMU (for cross-arch amd64 builds)
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm64
+          platforms: amd64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
