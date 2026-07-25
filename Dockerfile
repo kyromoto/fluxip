@@ -21,9 +21,9 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 # frontend/node_modules/.bin so the frontend role's `serve` start command
-# resolves directly (docker-entrypoint.sh only execs bare commands found on
-# PATH; anything else it wraps as `node <arg>`, which would misinterpret
-# `serve` as a script path).
+# resolves directly (the repo-root docker-entrypoint.sh below just
+# `exec "$@"`s the given command verbatim, unlike the base image's own
+# docker-entrypoint.sh which it replaces).
 ENV PATH="/app/frontend/node_modules/.bin:/app/node_modules/.bin:${PATH}"
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/backend/node_modules ./backend/node_modules
@@ -31,4 +31,11 @@ COPY --from=prod-deps /app/frontend/node_modules ./frontend/node_modules
 COPY --from=build /app/backend/package.json ./backend/package.json
 COPY --from=build /app/backend/dist ./backend/dist
 COPY --from=build /app/frontend/dist ./frontend/dist
+# The Node helper docker-entrypoint.sh below invokes to (re)generate
+# frontend/dist/config.js at container start (specs/006-frontend-runtime-config)
+# — not part of frontend/dist, so it needs its own COPY.
+COPY --from=build /app/frontend/scripts ./frontend/scripts
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 EXPOSE 8080 3000

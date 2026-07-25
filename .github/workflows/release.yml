@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted,linux,ubuntu,hcloud-1,fluxip]
     services:
       postgres:
         image: postgres:16-alpine
@@ -121,7 +121,11 @@ jobs:
         run: |
           set -e
           CONTAINER_ID=$(docker run --rm -d --network host \
-            fluxip:ci serve -s frontend/dist -l 3000)
+            -e FRONTEND_LOGTO_ENDPOINT=https://smoke-test.invalid \
+            -e FRONTEND_LOGTO_APP_ID=smoke-test-app-id \
+            -e FRONTEND_LOGTO_API_RESOURCE=https://smoke-test.invalid/api \
+            -e FRONTEND_BACKEND_URL=https://smoke-test.invalid/backend \
+            fluxip:ci serve --single frontend/dist -l 3000)
           trap 'docker stop "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
           ok=false
           for i in $(seq 1 15); do
@@ -136,6 +140,24 @@ jobs:
             docker logs "$CONTAINER_ID" || true
             exit 1
           fi
+          # SPA fallback routing (FR-005): a direct request to a non-root
+          # in-app route must still return the app shell, not a 404.
+          if ! curl -sf -o /dev/null http://localhost:3000/some/deep/route; then
+            echo "Frontend smoke test failed: deep route did not return 200 under serve --single"
+            docker logs "$CONTAINER_ID" || true
+            exit 1
+          fi
+          CONFIG_JS=$(curl -sf http://localhost:3000/config.js)
+          echo "$CONFIG_JS"
+          for value in smoke-test.invalid smoke-test-app-id smoke-test.invalid/api smoke-test.invalid/backend; do
+            case "$CONFIG_JS" in
+              *"$value"*) ;;
+              *)
+                echo "Frontend smoke test failed: config.js missing expected value: $value"
+                exit 1
+                ;;
+            esac
+          done
           echo "Frontend smoke test passed"
 
       - name: Determine version

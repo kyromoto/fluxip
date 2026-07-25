@@ -1,13 +1,14 @@
 import LogtoClient from "@logto/browser";
 import { createSignal } from "solid-js";
+import { getLogtoApiResource, getLogtoAppId, getLogtoEndpoint } from "~/config";
 
-const endpoint = import.meta.env.VITE_LOGTO_ENDPOINT;
-const appId = import.meta.env.VITE_LOGTO_APP_ID;
-const apiResource = import.meta.env.VITE_LOGTO_API_RESOURCE;
+const endpoint = getLogtoEndpoint();
+const appId = getLogtoAppId();
+const apiResource = getLogtoApiResource();
 
 if (!endpoint || !appId || !apiResource) {
   console.warn(
-    "VITE_LOGTO_ENDPOINT / VITE_LOGTO_APP_ID / VITE_LOGTO_API_RESOURCE are not set (see frontend/.env.example) — sign-in will fail.",
+    "Logto endpoint/app ID/API resource are not set (window.__ENV__ in production, VITE_LOGTO_* in frontend/.env for dev) — sign-in will fail.",
   );
 }
 

@@ -76,7 +76,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["serve", "-s", "frontend/dist", "-l", "3000"]
+    command: ["serve", "--single", "frontend/dist", "-l", "3000"]
+    # FRONTEND_LOGTO_ENDPOINT/_APP_ID/_API_RESOURCE/_BACKEND_URL (see
+    # .env.example) are read by the entrypoint at container start to
+    # generate frontend/dist/config.js (specs/006-frontend-runtime-config).
+    env_file:
+      - .env
     depends_on:
       - app
     ports:

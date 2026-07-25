@@ -34,6 +34,7 @@ Notably:
 - `CREDENTIAL_ENCRYPTION_KEY` — a 32-byte, base64-encoded key (`openssl rand -base64 32`) used to encrypt Provider Credential secrets (e.g. Hetzner Cloud API tokens) at rest. IP Client reporting credentials are never encrypted or logged — they're always system-generated and only a salted hash is ever persisted.
 - `LOGTO_ENDPOINT`, `LOGTO_MANAGEMENT_CLIENT_ID`/`_SECRET`/`_API_BASE_URL` — Logto OIDC + Management API (for in-app password change).
 - `SMTP_*` / `NOTIFICATION_FROM_ADDRESS` — outbound email for optional per-account notifications.
+- `FRONTEND_LOGTO_ENDPOINT`/`_APP_ID`/`_API_RESOURCE`, `FRONTEND_BACKEND_URL` — read by the `frontend` container's entrypoint at startup (not the backend) to generate a runtime `config.js` the frontend reads via `window.__ENV__`, so the same built image can be redeployed with different values without a rebuild — see `specs/006-frontend-runtime-config/`. All four are required for a working deployment; a missing one is logged at container start and warned about in the browser console rather than failing the container.
 
 ## Running with Docker Compose
 
@@ -79,12 +80,14 @@ Every push to `main` runs [`.github/workflows/release.yml`](.github/workflows/re
 | `feat!:` / `fix!:` / a `BREAKING CHANGE:` footer | major (`0.1.0` → `1.0.0`) |
 | anything else (`chore:`, `docs:`, no prefix, ...) | no release |
 
-**One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.yml`'s `app` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "-s", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
+**One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.yml`'s `app` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "--single", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
 
 ```bash
 docker run --env-file .env -p 8080:8080 ghcr.io/<owner>/fluxip:<version> node backend/dist/main.js
-docker run -p 3000:3000 ghcr.io/<owner>/fluxip:<version> serve -s frontend/dist -l 3000
+docker run -p 3000:3000 ghcr.io/<owner>/fluxip:<version> serve --single frontend/dist -l 3000
 ```
+
+A repo-root `docker-entrypoint.sh` runs before either start command and regenerates the frontend's runtime `config.js` from the `FRONTEND_*` env vars on every container start — see `specs/006-frontend-runtime-config/`.
 
 **Where to find things**: published image tags and `:latest` are under `ghcr.io/<owner>/fluxip` (GitHub Container Registry, repository Packages tab); each release also gets a matching Git tag (`vX.Y.Z`) and GitHub Release. A version's Git tag is only ever created after that version's image has already published successfully — never before, never independently.
 

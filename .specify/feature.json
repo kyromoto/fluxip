@@ -1,1 +1,3 @@
-{"feature_directory":"specs/001-ip-change-automation"}
+{
+  "feature_directory": "specs/006-frontend-runtime-config"
+}
