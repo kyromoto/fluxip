@@ -65,12 +65,10 @@ jobs:
       # - name: Test
       #   run: BACKEND_CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
 
-      # The self-hosted runner is arm64, so it needs QEMU registered for
-      # amd64 to build/emulate that platform (not arm64 — that's native here).
-      - name: Set up QEMU (for cross-arch amd64 builds)
+      - name: Set up QEMU (for cross-arch arm64 builds)
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: amd64
+          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -89,9 +87,6 @@ jobs:
           push: false
           load: true
           tags: fluxip:ci
-          # Needed for the setarch -R (ASLR disable) workaround in the
-          # Dockerfile's build stage — see the comment there for why.
-          allow: security.insecure
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -187,9 +182,8 @@ jobs:
       # Builds and pushes both platforms directly to GHCR as one multi-arch
       # manifest (can't `--load` a multi-platform image locally, so this is a
       # separate build from the amd64-only one used for smoke testing above;
-      # `cache-from` reuses that build's amd64 layers so only arm64 — native
-      # on this runner — needs real work here; amd64 is cached from the
-      # smoke-test build above and was built under QEMU emulation).
+      # `cache-from` reuses that build's amd64 layers so only arm64 — built
+      # under QEMU emulation — needs real work here).
       - name: Build and push multi-arch image to GHCR
         if: steps.version.outputs.should-release == 'true'
         uses: docker/build-push-action@v6
@@ -201,9 +195,6 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/fluxip:${{ steps.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/fluxip:latest
-          # Needed for the setarch -R (ASLR disable) workaround in the
-          # Dockerfile's build stage — see the comment there for why.
-          allow: security.insecure
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
