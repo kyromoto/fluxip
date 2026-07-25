@@ -3,6 +3,10 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS build
+# Works around a QEMU emulation bug (arm64 build on the amd64 CI runner) where
+# esbuild's Go binary crashes with "runtime: lfstack.push invalid packing" due
+# to mistranslated atomics during async goroutine preemption.
+ENV GODEBUG=asyncpreemptoff=1
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
