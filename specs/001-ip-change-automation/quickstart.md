@@ -6,7 +6,7 @@ This is a validation/run guide, not an implementation guide — it proves the fe
 
 - Docker + Docker Compose
 - A `docker-compose.yml` (created during implementation) bringing up: the FluxIP app container, Postgres, Redis, and Logto
-- Environment variables set per `plan.md`'s Constraints (at minimum `CLOUDEVENTS_SOURCE`, `CLOUDEVENTS_TYPE_PREFIX`, `DEFAULT_IP_CLIENT_LIMIT`, Postgres/Redis/Logto connection strings) — no config files, env vars only
+- Environment variables set per `plan.md`'s Constraints (at minimum `BACKEND_CLOUDEVENTS_SOURCE`, `BACKEND_CLOUDEVENTS_TYPE_PREFIX`, `BACKEND_DEFAULT_IP_CLIENT_LIMIT`, Postgres/Redis/Logto connection strings) — no config files, env vars only
 - A Hetzner DNS zone with an existing A/AAAA record you're willing to point at a test IP, and a **Hetzner Cloud API token** for it (issued from Hetzner Console; older DNS Console-issued tokens are not accepted — research.md §18, FR-035)
 - `curl` (or any HTTP client) and a way to obtain a Logto access token for a test user (Logto's own login flow)
 
@@ -34,7 +34,7 @@ export TOKEN="<logto-access-token>"
 4. Simulate the router reporting a new IP, using the IP Client's own reporting credential as Basic Auth (per `contracts/trigger-endpoint.md`):
    ```bash
    curl -u "<ip_client_user>:<ip_client_secret>" \
-     "http://localhost:PORT/nic/update?hostname=test&myip=203.0.113.42"
+     "http://localhost:BACKEND_PORT/nic/update?hostname=test&myip=203.0.113.42"
    ```
 5. **Expected**: within the ~30s debounce window plus retry margin (well under SC-002's 5-minute target), `GET /api/actions/{id}/executions` shows one execution with `status: succeeded`, and the Hetzner DNS record now resolves to `203.0.113.42`.
 6. Repeat step 4 with the same `myip` value.

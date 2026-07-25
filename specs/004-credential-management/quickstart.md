@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Repo already set up per the root `README.md` (`pnpm install`, `docker-compose up` for Postgres/Redis/Logto, `.env` populated from `.env.example`, `CREDENTIAL_ENCRYPTION_KEY` set — this is the same key the existing `POST /provider-credentials` already uses).
+- Repo already set up per the root `README.md` (`pnpm install`, `docker-compose up` for Postgres/Redis/Logto, `.env` populated from `.env.example`, `BACKEND_CREDENTIAL_ENCRYPTION_KEY` set — this is the same key the existing `POST /provider-credentials` already uses).
 - At least one authenticated account with one Trigger Device, so an Action can be attached during scenario 3 below.
 - No new dependencies or setup beyond what 001/003 already require — this feature adds no package.
 

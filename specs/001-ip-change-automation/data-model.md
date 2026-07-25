@@ -14,7 +14,7 @@ The tenant root. One `account` aggregate exists per registered user; its aggrega
 |---|---|---|
 | `accountId` | string (= tenant ID = Logto subject) | Primary identity |
 | `registeredAt` | timestamp | From `registered` |
-| `deviceLimit` | integer | Starts at the deployment-configured default (`DEFAULT_IP_CLIENT_LIMIT` env var); overridden by `device_limit_overridden` |
+| `deviceLimit` | integer | Starts at the deployment-configured default (`BACKEND_DEFAULT_IP_CLIENT_LIMIT` env var); overridden by `device_limit_overridden` |
 | `status` | `active` \| `closed` | Terminal once `closed` |
 
 **Events**:

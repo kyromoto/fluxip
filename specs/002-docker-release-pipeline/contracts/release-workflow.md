@@ -24,7 +24,7 @@ This is the contract a *deployer* relies on, not just CI — it's what `docker-c
 | Aspect | Contract |
 |---|---|
 | Image reference | `ghcr.io/<owner>/fluxip:<version>` and `ghcr.io/<owner>/fluxip:latest` — one repository, both tags always point at the same image for a given Release (FR-002, FR-012, FR-013) |
-| Backend role | `docker run ... ghcr.io/<owner>/fluxip:<version> node backend/dist/main.js` — requires the same environment variables `backend/src/config/env.ts` already requires (`DATABASE_URL`, `REDIS_URL`, `CLOUDEVENTS_SOURCE`, etc.); unchanged by this feature |
+| Backend role | `docker run ... ghcr.io/<owner>/fluxip:<version> node backend/dist/main.js` — requires the same environment variables `backend/src/config/env.ts` already requires (`BACKEND_DATABASE_URL`, `BACKEND_REDIS_URL`, `BACKEND_CLOUDEVENTS_SOURCE`, etc.); unchanged by this feature |
 | Frontend role | `docker run ... ghcr.io/<owner>/fluxip:<version> serve -s frontend/dist -l <port>` — serves the static SPA build, no environment variables required |
 | Role selection | Exclusively via the container's start command (`CMD`/`command:` override) — never via a different image, tag, or environment variable (FR-003) |
 
@@ -47,7 +47,7 @@ This is the contract a *deployer* relies on, not just CI — it's what `docker-c
 | Step | Behavior |
 |---|---|
 | `docker build` | Builds the single image from the root `Dockerfile`, tagged locally, **not pushed**. Runs on every push regardless of `should-release` (FR-001 is unconditional). |
-| Backend smoke test | `docker run --network host -e DATABASE_URL=... -e REDIS_URL=... -e CLOUDEVENTS_SOURCE=... -e CLOUDEVENTS_TYPE_PREFIX=... -e LOGTO_ENDPOINT=... -e CREDENTIAL_ENCRYPTION_KEY=... <local-tag> node backend/dist/main.js`, poll `GET http://localhost:8080/metrics` for `200` within 15s, then stop the container. Env vars are required — `backend/src/config/env.ts`'s `loadConfig()` throws before the port ever opens if any are missing. `DATABASE_URL`/`REDIS_URL` point at the job's real Postgres/Redis services; the rest are well-formed dummies (never contacted at startup). Failure stops the job (FR-005a/FR-006). |
+| Backend smoke test | `docker run --network host -e BACKEND_DATABASE_URL=... -e BACKEND_REDIS_URL=... -e BACKEND_CLOUDEVENTS_SOURCE=... -e BACKEND_CLOUDEVENTS_TYPE_PREFIX=... -e BACKEND_LOGTO_ENDPOINT=... -e BACKEND_CREDENTIAL_ENCRYPTION_KEY=... <local-tag> node backend/dist/main.js`, poll `GET http://localhost:8080/metrics` for `200` within 15s, then stop the container. Env vars are required — `backend/src/config/env.ts`'s `loadConfig()` throws before the port ever opens if any are missing. `BACKEND_DATABASE_URL`/`BACKEND_REDIS_URL` point at the job's real Postgres/Redis services; the rest are well-formed dummies (never contacted at startup). Failure stops the job (FR-005a/FR-006). |
 | Frontend smoke test | `docker run --network host ... <local-tag> serve -s frontend/dist -l <port>`, poll `GET http://localhost:<port>/` for `200` within 15s, then stop the container. No environment variables required — the static build has no runtime config. Failure stops the job (FR-005a/FR-006). |
 
 **Guarantee**: Both smoke tests run on every push (not conditioned on `should-release`), so a broken start command is caught even on pushes that wouldn't otherwise produce a Release.

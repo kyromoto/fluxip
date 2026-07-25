@@ -7,7 +7,7 @@ This is not an HTTP API contract — this feature adds no endpoint. It's the con
 | Category | Sink | Wrapped with |
 |---|---|---|
 | `["fluxip", "app"]` (and every child, e.g. `["fluxip","app","trigger"]`) | `console` (`getConsoleSink()`) | `redactByField(...)` |
-| `["fluxip", "access"]` | `access-file` (`getRotatingFileSink(ACCESS_LOG_FILE_PATH, { maxSize, maxFiles })`) | `redactByField(...)` |
+| `["fluxip", "access"]` | `access-file` (`getRotatingFileSink(BACKEND_ACCESS_LOG_FILE_PATH, { maxSize, maxFiles })`) | `redactByField(...)` |
 
 **Invariant**: no sink is ever listed for both categories, and no category is ever a prefix/ancestor of the other. A future contributor adding a new Application Log call site under `["fluxip", "app", ...]` cannot accidentally write to the Access Log's file, and `honoLogger()` is the *only* thing ever configured to log under `["fluxip", "access"]`.
 

@@ -38,7 +38,7 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`. 
 - [X] T007 Create docker-compose.yml wiring app, Postgres, Redis, and Logto containers per plan.md Deployment constraints
 - [X] T008 [P] Create backend Dockerfile (Node 22, pnpm via corepack, no config files baked in, env-var only) in backend/Dockerfile
 - [X] T009 [P] Create frontend Dockerfile (pnpm via corepack, static build) in frontend/Dockerfile
-- [X] T010 Create .env.example documenting all required environment variables (CLOUDEVENTS_SOURCE, CLOUDEVENTS_TYPE_PREFIX, DEFAULT_IP_CLIENT_LIMIT, ACTION_RETRY_ATTEMPTS, ACTION_RETRY_BASE_DELAY_MS, IP_CLIENT_DEBOUNCE_MS, LOGTO_MANAGEMENT_CLIENT_ID, LOGTO_MANAGEMENT_CLIENT_SECRET, LOGTO_MANAGEMENT_API_BASE_URL, CREDENTIAL_ENCRYPTION_KEY, Postgres/Redis/Logto connection settings) in .env.example
+- [X] T010 Create .env.example documenting all required environment variables (BACKEND_CLOUDEVENTS_SOURCE, BACKEND_CLOUDEVENTS_TYPE_PREFIX, BACKEND_DEFAULT_IP_CLIENT_LIMIT, BACKEND_ACTION_RETRY_ATTEMPTS, BACKEND_ACTION_RETRY_BASE_DELAY_MS, BACKEND_IP_CLIENT_DEBOUNCE_MS, BACKEND_LOGTO_MANAGEMENT_CLIENT_ID, BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET, BACKEND_LOGTO_MANAGEMENT_API_BASE_URL, BACKEND_CREDENTIAL_ENCRYPTION_KEY, Postgres/Redis/Logto connection settings) in .env.example
 
 ---
 
@@ -50,13 +50,13 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`. 
 
 - [X] T011 Create Postgres migration for the append-only `events` table (`aggregate_id`, `aggregate_type`, `sequence_number`, `tenant_id`, CloudEvents envelope columns, unique `(aggregate_id, sequence_number)`) in backend/src/adapters/event-store-postgres/migrations/0001_events.sql
 - [X] T012 Implement environment-variable config loader with validation in backend/src/config/env.ts
-- [X] T013 [P] Implement CloudEvents envelope builder reading `CLOUDEVENTS_SOURCE`/`CLOUDEVENTS_TYPE_PREFIX` from config in backend/src/domain/cloud-events.ts
+- [X] T013 [P] Implement CloudEvents envelope builder reading `BACKEND_CLOUDEVENTS_SOURCE`/`BACKEND_CLOUDEVENTS_TYPE_PREFIX` from config in backend/src/domain/cloud-events.ts
 - [X] T014 Define the `EventStore` port (append with optimistic concurrency, read stream, tenant-scoped) in backend/src/ports/event-store.ts
 - [X] T015 Implement the Postgres `EventStore` adapter in backend/src/adapters/event-store-postgres/postgres-event-store.ts (depends on T011, T014)
 - [X] T016 [P] Implement a generic aggregate-replay helper (fold events → state) instrumented with replay-duration/event-count metrics per research.md §10 in backend/src/domain/replay.ts
 - [X] T017 [P] Configure `prom-client` metrics registry and `/metrics` route in backend/src/adapters/http/metrics-route.ts
 - [X] T018 Implement Logto OIDC/JWKS token-verification middleware (`jose`) in backend/src/adapters/auth-logto/oidc-middleware.ts
-- [X] T019 Implement account auto-provisioning on first authenticated request (emits `account.registered` if none exists yet for this tenant; initializes `deviceLimit` from `DEFAULT_IP_CLIENT_LIMIT`, FR-033) in backend/src/domain/account/account-service.ts (depends on T015, T018)
+- [X] T019 Implement account auto-provisioning on first authenticated request (emits `account.registered` if none exists yet for this tenant; initializes `deviceLimit` from `BACKEND_DEFAULT_IP_CLIENT_LIMIT`, FR-033) in backend/src/domain/account/account-service.ts (depends on T015, T018)
 - [X] T020 [P] Implement BullMQ queue/worker bootstrap (Redis connection, queue naming) in backend/src/adapters/queue-bullmq/queue.ts
 - [X] T021 Implement the Hono app entrypoint wiring config, auth middleware, routes, and the metrics route in backend/src/adapters/http/app.ts (depends on T012, T017, T018)
 - [X] T022 [P] Implement a tenant-scoped repository base that requires and enforces `tenant_id` at the query level per research.md §8 in backend/src/adapters/event-store-postgres/tenant-scoped-repository.ts (depends on T015)
@@ -252,7 +252,7 @@ With multiple developers, after Foundational completes: Developer A takes US1's 
 
 **Context**: T082's `zones`/`rrsets`-collection implementation of FR-035 (Cloud API only) did not actually update DNS records correctly. The user manually verified the real working request against a live zone/token and reported the exact correct shape.
 
-- [X] T085 Replace the `zones`/`rrsets`-collection call (`GET /v1/zones?name=`, then `GET`/`POST /v1/zones/{zone_id}/rrsets`) with the manually verified, working per-rrset `set_records` action (`POST /v1/zones/{zone}/rrsets/{name}/{type}/actions/set_records`), dropping the now-unneeded zone-ID-resolution and rrset-listing calls, in backend/src/adapters/actions/hetzner-dns/hetzner-dns-executor.ts per FR-035 (contradicts — T082's implementation, though intent-correct, used an incorrect/non-working endpoint shape); the request body's `comment` field is composed dynamically per execution from `CLOUDEVENTS_SOURCE` (protocol stripped, threaded through from `deps.config.cloudEventsSource` in action-execution-worker.ts as new field `sourceLabel`) and the current execution timestamp (`new Date().toISOString()`, computed fresh per address-family call, never hardcoded)
+- [X] T085 Replace the `zones`/`rrsets`-collection call (`GET /v1/zones?name=`, then `GET`/`POST /v1/zones/{zone_id}/rrsets`) with the manually verified, working per-rrset `set_records` action (`POST /v1/zones/{zone}/rrsets/{name}/{type}/actions/set_records`), dropping the now-unneeded zone-ID-resolution and rrset-listing calls, in backend/src/adapters/actions/hetzner-dns/hetzner-dns-executor.ts per FR-035 (contradicts — T082's implementation, though intent-correct, used an incorrect/non-working endpoint shape); the request body's `comment` field is composed dynamically per execution from `BACKEND_CLOUDEVENTS_SOURCE` (protocol stripped, threaded through from `deps.config.cloudEventsSource` in action-execution-worker.ts as new field `sourceLabel`) and the current execution timestamp (`new Date().toISOString()`, computed fresh per address-family call, never hardcoded)
 - [X] T086 Update the adapter's unit tests to assert the exact verified request (URL, method, body shape including the dynamic comment) instead of the superseded `zones`/`rrsets`-collection mocks, in backend/tests/unit/adapters/actions/hetzner-dns-executor.test.ts per FR-035 (partial) — 4/4 tests pass, including one asserting the comment's timestamp falls within the actual call's execution window
 - [X] T087 Update research.md §18 to document the corrected, manually verified endpoint and request shape, replacing the incorrect `zones`/`rrsets`-collection decision record, per FR-035 (partial)
 

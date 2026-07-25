@@ -64,8 +64,8 @@ This is a validation/run guide, not an implementation guide — it proves the fe
 1. Start the same image as the backend role, with no `FRONTEND_*` vars set at all (mirrors the existing CI smoke test):
    ```bash
    docker run --rm -d -p 8080:8080 --name fluxip-backend \
-     -e DATABASE_URL=... -e REDIS_URL=... -e CLOUDEVENTS_SOURCE=... \
-     -e CLOUDEVENTS_TYPE_PREFIX=... -e LOGTO_ENDPOINT=... -e CREDENTIAL_ENCRYPTION_KEY=... \
+     -e BACKEND_DATABASE_URL=... -e BACKEND_REDIS_URL=... -e BACKEND_CLOUDEVENTS_SOURCE=... \
+     -e BACKEND_CLOUDEVENTS_TYPE_PREFIX=... -e BACKEND_LOGTO_ENDPOINT=... -e BACKEND_CREDENTIAL_ENCRYPTION_KEY=... \
      fluxip:local node backend/dist/main.js
    ```
 2. `curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/metrics`.

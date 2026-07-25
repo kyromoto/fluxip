@@ -12,7 +12,7 @@ export interface BuiltEvent<TData> {
 
 /**
  * Builds a CloudEvents-compliant envelope for one domain event.
- * `type` is assembled as `${CLOUDEVENTS_TYPE_PREFIX}.<aggregateType>.<eventName>`
+ * `type` is assembled as `${BACKEND_CLOUDEVENTS_TYPE_PREFIX}.<aggregateType>.<eventName>`
  * per research.md §3 — source and prefix are always read from config, never hardcoded.
  */
 export function buildDomainEvent<TData>(

@@ -9,7 +9,7 @@ The set of deployment-specific values the running frontend needs, sourced from e
 | Field (env var) | `window.__ENV__` key | Type | Required | Notes |
 |---|---|---|---|---|
 | `FRONTEND_LOGTO_ENDPOINT` | `LOGTO_ENDPOINT` | string (URL) | Yes | Logto OIDC issuer endpoint the frontend's `@logto/browser` client connects to |
-| `FRONTEND_LOGTO_APP_ID` | `LOGTO_APP_ID` | string | Yes | Logto SPA application ID (distinct from the backend's own `LOGTO_APP_ID`, a different Logto application — research.md §2) |
+| `FRONTEND_LOGTO_APP_ID` | `LOGTO_APP_ID` | string | Yes | Logto SPA application ID (distinct from the backend's own `BACKEND_LOGTO_APP_ID`, a different Logto application — research.md §2) |
 | `FRONTEND_LOGTO_API_RESOURCE` | `LOGTO_API_RESOURCE` | string (URL) | Yes | API resource indicator requested so Logto issues a signed JWT rather than an opaque token (see existing `frontend/src/services/auth.ts` comment) |
 | `FRONTEND_BACKEND_URL` | `BACKEND_URL` | string (URL or empty) | Yes in production; defaults to `""` (same-origin) in local dev only | Prefixed onto every `frontend/src/services/api.ts` request (research.md §8) |
 

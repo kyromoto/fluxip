@@ -34,8 +34,8 @@ import type { ActionExecutionIpValues, ActionExecutionResult, ActionExecutor } f
 
 const config = loadConfig({
   ...process.env,
-  IP_CLIENT_DEBOUNCE_MS: "200",
-  ACTION_RETRY_ATTEMPTS: "1",
+  BACKEND_IP_CLIENT_DEBOUNCE_MS: "200",
+  BACKEND_ACTION_RETRY_ATTEMPTS: "1",
 });
 
 /** Fails deterministically for one zone so a single fan-out produces both a success and a failure (quickstart Scenario 1). */

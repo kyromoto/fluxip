@@ -20,7 +20,7 @@ export interface HetznerDnsResolvedConfig {
   zoneName: string;
   /** The rrset name within the zone, e.g. "@" for the zone apex or "home". */
   recordName: string;
-  /** CLOUDEVENTS_SOURCE with its protocol prefix stripped, attributing the update in Hetzner's own record comment. */
+  /** BACKEND_CLOUDEVENTS_SOURCE with its protocol prefix stripped, attributing the update in Hetzner's own record comment. */
   sourceLabel: string;
 }
 

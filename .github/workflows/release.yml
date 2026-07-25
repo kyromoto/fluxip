@@ -35,11 +35,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://fluxip:fluxip@localhost:5432/fluxip
-      REDIS_URL: redis://localhost:6379
-      CLOUDEVENTS_SOURCE: https://fluxip.example.com
-      CLOUDEVENTS_TYPE_PREFIX: space.kyro.fluxip
-      LOGTO_ENDPOINT: https://smoke-test.invalid
+      BACKEND_DATABASE_URL: postgresql://fluxip:fluxip@localhost:5432/fluxip
+      BACKEND_REDIS_URL: redis://localhost:6379
+      BACKEND_CLOUDEVENTS_SOURCE: https://fluxip.example.com
+      BACKEND_CLOUDEVENTS_TYPE_PREFIX: space.kyro.fluxip
+      BACKEND_LOGTO_ENDPOINT: https://smoke-test.invalid
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
         run: pnpm -r build
 
       # - name: Test
-      #   run: CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
+      #   run: BACKEND_CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm --filter fluxip-backend test
 
       - name: Set up QEMU (for cross-arch arm64 builds)
         uses: docker/setup-qemu-action@v3
@@ -94,12 +94,12 @@ jobs:
         run: |
           set -e
           CONTAINER_ID=$(docker run --rm -d --network host \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e REDIS_URL="$REDIS_URL" \
-            -e CLOUDEVENTS_SOURCE="$CLOUDEVENTS_SOURCE" \
-            -e CLOUDEVENTS_TYPE_PREFIX="$CLOUDEVENTS_TYPE_PREFIX" \
-            -e LOGTO_ENDPOINT="$LOGTO_ENDPOINT" \
-            -e CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+            -e BACKEND_DATABASE_URL="$BACKEND_DATABASE_URL" \
+            -e BACKEND_REDIS_URL="$BACKEND_REDIS_URL" \
+            -e BACKEND_CLOUDEVENTS_SOURCE="$BACKEND_CLOUDEVENTS_SOURCE" \
+            -e BACKEND_CLOUDEVENTS_TYPE_PREFIX="$BACKEND_CLOUDEVENTS_TYPE_PREFIX" \
+            -e BACKEND_LOGTO_ENDPOINT="$BACKEND_LOGTO_ENDPOINT" \
+            -e BACKEND_CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
             fluxip:ci node backend/dist/main.js)
           trap 'docker stop "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
           ok=false

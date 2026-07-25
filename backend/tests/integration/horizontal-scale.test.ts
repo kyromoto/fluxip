@@ -23,8 +23,8 @@ import type { NotificationChannel, NotificationMessage } from "../../src/ports/n
 
 const config = loadConfig({
   ...process.env,
-  IP_CLIENT_DEBOUNCE_MS: "150",
-  ACTION_RETRY_ATTEMPTS: "1",
+  BACKEND_IP_CLIENT_DEBOUNCE_MS: "150",
+  BACKEND_ACTION_RETRY_ATTEMPTS: "1",
 });
 
 const IP_CLIENT_COUNT = 60;

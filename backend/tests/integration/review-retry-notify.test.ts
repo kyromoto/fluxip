@@ -24,9 +24,9 @@ import type { NotificationChannel, NotificationMessage } from "../../src/ports/n
 
 const config = loadConfig({
   ...process.env,
-  IP_CLIENT_DEBOUNCE_MS: "200",
-  ACTION_RETRY_ATTEMPTS: "2",
-  ACTION_RETRY_BASE_DELAY_MS: "100",
+  BACKEND_IP_CLIENT_DEBOUNCE_MS: "200",
+  BACKEND_ACTION_RETRY_ATTEMPTS: "2",
+  BACKEND_ACTION_RETRY_BASE_DELAY_MS: "100",
 });
 
 class ToggleableExecutor implements ActionExecutor {

@@ -3,7 +3,7 @@ import type { Config } from "../../config/env.js";
 /**
  * Logto's Management API always uses this fixed resource indicator, regardless
  * of deployment/custom domain — it identifies the API itself, not a per-tenant
- * value, so (unlike LOGTO_ENDPOINT etc.) it is not deployment configuration.
+ * value, so (unlike BACKEND_LOGTO_ENDPOINT etc.) it is not deployment configuration.
  */
 const MANAGEMENT_API_RESOURCE = "https://default.logto.app/api";
 

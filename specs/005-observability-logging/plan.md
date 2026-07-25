@@ -59,7 +59,7 @@ backend/
 │   │   ├── logging.ts                          # NEW — configureLogging()/disposeLogging(): declares both disjoint category trees + sinks (console for app, redacted rotating file for access), wraps both sinks with @logtape/redaction
 │   │   └── app-logger.ts                        # NEW — getAppLogger(category) + withOperation(correlationId, fn) thin wrapper over LogTape's getLogger/withContext, used by every app-log call site
 │   ├── main.ts                                  # MODIFIED — calls configureLogging() first; disposeLogging() added to the existing SIGTERM/SIGINT shutdown handler
-│   ├── config/env.ts                            # MODIFIED — new env vars: ACCESS_LOG_FILE_PATH, ACCESS_LOG_MAX_SIZE_BYTES, ACCESS_LOG_MAX_FILES, APP_LOG_LEVEL
+│   ├── config/env.ts                            # MODIFIED — new env vars: BACKEND_ACCESS_LOG_FILE_PATH, BACKEND_ACCESS_LOG_MAX_SIZE_BYTES, BACKEND_ACCESS_LOG_MAX_FILES, BACKEND_APP_LOG_LEVEL
 │   ├── adapters/http/app.ts                     # MODIFIED — mounts @logtape/hono's honoLogger() (Access Log + request-context) at the very top of `app`, before every route including the trigger endpoint (FR-007)
 │   ├── adapters/http/routes/trigger.ts          # MODIFIED — logs a "trigger report received" Application Log entry after appending ip_report_received (FR-001)
 │   ├── adapters/queue-bullmq/debounce-worker.ts # MODIFIED — establishes the operation's correlation context via withOperation(causationEvent.id, ...) and logs "IP change confirmed" around the ip_changed append + fan-out

@@ -14,10 +14,10 @@
 
 **Decision**: Frontend runtime values are named with an explicit `FRONTEND_` prefix: `FRONTEND_LOGTO_ENDPOINT`, `FRONTEND_LOGTO_APP_ID`, `FRONTEND_LOGTO_API_RESOURCE`, `FRONTEND_BACKEND_URL`. The `window.__ENV__` object itself uses the shorter, unprefixed keys (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`, `LOGTO_API_RESOURCE`, `BACKEND_URL`) since it's already frontend-scoped by construction.
 
-**Rationale**: The backend already owns `LOGTO_ENDPOINT` and `LOGTO_APP_ID` (`backend/src/config/env.ts`) for a different purpose (server-side JWT verification / Management API client), with different required-ness and different values (the frontend's Logto App ID is a public SPA client; the backend's is an optional confidential Management API client). Both services are expected to share one `.env` file in `docker-compose.yml` (research.md §6), so unprefixed names would collide. Prefixing the frontend's copies avoids that collision and makes the ownership unambiguous at a glance in `.env`/`.env.example`.
+**Rationale**: The backend already owns `BACKEND_LOGTO_ENDPOINT` and `BACKEND_LOGTO_APP_ID` (`backend/src/config/env.ts`) for a different purpose (server-side JWT verification / Management API client), with different required-ness and different values (the frontend's Logto App ID is a public SPA client; the backend's is an optional confidential Management API client). Both services are expected to share one `.env` file in `docker-compose.yml` (research.md §6), so unprefixed names would collide. Prefixing the frontend's copies avoids that collision and makes the ownership unambiguous at a glance in `.env`/`.env.example`.
 
 **Alternatives considered**:
-- Reuse the exact `VITE_LOGTO_*` names as runtime env var names too: rejected — keeping the `VITE_` prefix on a var that Vite no longer reads at runtime would be misleading, and it still collides with the backend's `LOGTO_ENDPOINT`.
+- Reuse the exact `VITE_LOGTO_*` names as runtime env var names too: rejected — keeping the `VITE_` prefix on a var that Vite no longer reads at runtime would be misleading, and it still collides with the backend's `BACKEND_LOGTO_ENDPOINT`.
 
 ## §3. Local dev fallback (`src/config.ts`)
 
