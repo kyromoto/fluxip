@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: [self-hosted,linux,ubuntu,hcloud-1,fluxip]
+    runs-on: [self-hosted,linux,ubuntu,home-1,fluxip]
     services:
       postgres:
         image: postgres:16-alpine
