@@ -44,7 +44,7 @@ async function main(): Promise<void> {
 
   const hetznerDnsExecutor = new HetznerDnsExecutor();
   const emailNotifier = new EmailNotifier(config);
-  const debounceWorker = createDebounceWorker({ config, eventStore, actionExecutionQueue });
+  const debounceWorker = createDebounceWorker({ config, eventStore, redis, actionExecutionQueue });
   const actionExecutionWorker = createActionExecutionWorker({
     config,
     eventStore,

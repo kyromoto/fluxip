@@ -28,6 +28,9 @@ import {
 } from "../../src/domain/provider-credential/events.js";
 import { encryptSecret } from "../../src/domain/provider-credential/secret-encryption.js";
 import type { ActionExecutionIpValues, ActionExecutionResult, ActionExecutor } from "../../src/ports/action-executor.js";
+import { listIpClientsProjection, upsertIpClientProjection } from "../../src/projections/ip-clients-projection.js";
+import { initialIpClientState, ipClientReducer } from "../../src/domain/ip-client/ip-client-aggregate.js";
+import { loadAggregate } from "../../src/domain/replay.js";
 
 const config = loadConfig({
   ...process.env,
@@ -57,6 +60,7 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 5000): Pro
 describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execute)", () => {
   const pool = new Pool({ connectionString: config.databaseUrl });
   const eventStore = new PostgresEventStore(pool);
+  const redis = getRedisConnection(config);
   const debounceQueue = createDebounceQueue(config);
   const actionExecutionQueue = createActionExecutionQueue(config);
   const executor = new StubExecutor();
@@ -66,7 +70,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
 
   beforeAll(async () => {
     await runMigrations(pool);
-    debounceWorker = createDebounceWorker({ config, eventStore, actionExecutionQueue });
+    debounceWorker = createDebounceWorker({ config, eventStore, redis, actionExecutionQueue });
     actionExecutionWorker = createActionExecutionWorker({
       config,
       eventStore,
@@ -108,6 +112,19 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
       time: registeredEvent.time,
       data: registeredEvent.data,
     });
+
+    // Mirrors what POST /ip-clients does in production: seed the Redis list
+    // projection at registration time, so it already exists (with lastKnownIPv4:
+    // null) by the time the debounce worker later settles an IP change — the
+    // exact precondition under which a missed projection refresh would go
+    // unnoticed (listIpClientsProjection only self-heals when the key is absent).
+    const { state: registeredState } = await loadAggregate(
+      eventStore,
+      { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+      initialIpClientState,
+      ipClientReducer,
+    );
+    await upsertIpClientProjection(redis, tenantId, registeredState);
 
     const credentialId = `test-credential-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
@@ -188,6 +205,11 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
     const changedEvents = ipClientEvents.filter((e) => e.eventName === IpClientEventName.IpChanged);
     expect(changedEvents).toHaveLength(1);
     expect((changedEvents[0]?.data as { newIPv4?: string }).newIPv4).toBe("203.0.113.42");
+
+    // The devices list (GET /api/ip-clients) is served from this Redis projection, not
+    // the event-sourced aggregate directly — it must reflect a settled IP change too.
+    const projected = await listIpClientsProjection(redis, eventStore, tenantId);
+    expect(projected.find((c) => c.ipClientId === ipClientId)?.lastKnownIPv4).toBe("203.0.113.42");
 
     await waitFor(() => Promise.resolve(executor.calls.length >= 1));
     expect(executor.calls).toHaveLength(1);

@@ -1,5 +1,6 @@
 import type { Queue } from "bullmq";
 import { Worker, type Job } from "bullmq";
+import type { Redis } from "ioredis";
 import type { Config } from "../../config/env.js";
 import { buildDomainEvent } from "../../domain/cloud-events.js";
 import {
@@ -12,6 +13,7 @@ import { initialIpClientState, ipClientReducer } from "../../domain/ip-client/ip
 import { loadAggregate } from "../../domain/replay.js";
 import { getAppLogger, withOperation } from "../../observability/app-logger.js";
 import type { EventStore } from "../../ports/event-store.js";
+import { upsertIpClientProjection } from "../../projections/ip-clients-projection.js";
 import type { ActionExecutionJobData } from "./action-execution-worker.js";
 import type { DebounceJobData } from "./debounce-scheduler.js";
 import { fanOutActionExecutions } from "./execution-fanout-worker.js";
@@ -22,6 +24,7 @@ const logger = getAppLogger(["debounce"]);
 export interface DebounceWorkerDeps {
   config: Config;
   eventStore: EventStore;
+  redis: Redis;
   actionExecutionQueue: Queue<ActionExecutionJobData>;
 }
 
@@ -89,6 +92,9 @@ export function createDebounceWorker(deps: DebounceWorkerDeps): Worker<DebounceJ
             previousIPv6: changedData.previousIPv6,
             newIPv6: changedData.newIPv6,
           });
+
+          const updatedState = ipClientReducer(state, causationEvent);
+          await upsertIpClientProjection(deps.redis, tenantId, updatedState);
 
           await fanOutActionExecutions(deps.eventStore, deps.actionExecutionQueue, {
             tenantId,
