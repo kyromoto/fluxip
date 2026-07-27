@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { For, type JSX } from "solid-js";
 import { Button } from "~/components/ui/button";
 import { signOut } from "~/services/auth";
+import { Breadcrumbs } from "./Breadcrumbs";
 
 const NAV_LINKS = [
   { href: "/ip-clients", label: "Devices" },
@@ -36,6 +37,7 @@ export function AppShell(props: { children?: JSX.Element }) {
           </Button>
         </div>
       </header>
+      <Breadcrumbs />
       <main class="mx-auto max-w-4xl px-4 py-6">{props.children}</main>
     </div>
   );
