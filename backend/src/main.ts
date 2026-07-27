@@ -63,7 +63,11 @@ async function main(): Promise<void> {
     actionExecutionQueue,
   });
 
-  serve({ fetch: app.fetch, port: config.port }, (info) => {
+  // Bind IPv4 explicitly: without a hostname, Node defaults to "::" which on
+  // hosts with IPv6 loopback restricted (net.ipv6.bindv6only or similar) ends
+  // up IPv6-only, silently unreachable via 127.0.0.1/localhost — the process
+  // logs "listening" and never receives a connection.
+  serve({ fetch: app.fetch, port: config.port, hostname: "0.0.0.0" }, (info) => {
     logger.info("FluxIP backend listening on port {port}", { port: info.port });
   });
 
