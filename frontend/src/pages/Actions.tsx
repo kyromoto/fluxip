@@ -147,7 +147,7 @@ export default function Actions() {
                 <Button
                   size="sm"
                   variant="outline"
-                  class="border-amber-500 text-amber-600 hover:bg-amber-50 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-950"
+                  class="border-amber-500 text-amber-600 hover:bg-amber-500/10 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-400/10"
                   onClick={() => handleDeviceToggle(client().status)}
                 >
                   {client().status === "enabled" ? "Disable" : "Enable"}
@@ -155,7 +155,7 @@ export default function Actions() {
                 <Button
                   size="sm"
                   variant="outline"
-                  class="border-amber-500 text-amber-600 hover:bg-amber-50 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-950"
+                  class="border-amber-500 text-amber-600 hover:bg-amber-500/10 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-400/10"
                   onClick={() => handleDeviceRotate()}
                 >
                   Rotate credential
