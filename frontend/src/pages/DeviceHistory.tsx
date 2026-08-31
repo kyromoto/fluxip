@@ -90,12 +90,26 @@ export default function DeviceHistory() {
                   <Card>
                     <CardHeader class="space-y-1">
                       <CardTitle class="font-mono text-sm font-normal text-muted-foreground">{change.time}</CardTitle>
-                      <div class="flex flex-col flex-wrap gap-x-4 gap-y-1 text-sm">
+                      <div class="flex flex-col gap-1 text-sm">
                         <Show when={addressChange(change.data.previousIPv4, change.data.newIPv4)}>
-                          {(value) => <span class="min-w-0 break-all font-mono text-xs">IPv4: {value()}</span>}
+                          {(value) => (
+                            <div class="flex min-w-0 items-baseline gap-1.5">
+                              <span class="shrink-0 text-xs text-muted-foreground">IPv4</span>
+                              <span class="min-w-0 truncate font-mono text-xs" title={value()}>
+                                {value()}
+                              </span>
+                            </div>
+                          )}
                         </Show>
                         <Show when={addressChange(change.data.previousIPv6, change.data.newIPv6)}>
-                          {(value) => <span class="min-w-0 break-all font-mono text-xs">IPv6: {value()}</span>}
+                          {(value) => (
+                            <div class="flex min-w-0 items-baseline gap-1.5">
+                              <span class="shrink-0 text-xs text-muted-foreground">IPv6</span>
+                              <span class="min-w-0 truncate font-mono text-xs" title={value()}>
+                                {value()}
+                              </span>
+                            </div>
+                          )}
                         </Show>
                       </div>
                     </CardHeader>

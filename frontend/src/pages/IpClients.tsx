@@ -90,9 +90,13 @@ export default function IpClients() {
                     <CardContent class="flex-1">
                       <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                         <dt class="text-muted-foreground">Last IPv4</dt>
-                        <dd class="min-w-0 break-all font-mono text-xs">{client.lastKnownIPv4 ?? "—"}</dd>
+                        <dd class="min-w-0 truncate font-mono text-xs" title={client.lastKnownIPv4 ?? undefined}>
+                          {client.lastKnownIPv4 ?? "—"}
+                        </dd>
                         <dt class="text-muted-foreground">Last IPv6</dt>
-                        <dd class="min-w-0 break-all font-mono text-xs">{client.lastKnownIPv6 ?? "—"}</dd>
+                        <dd class="min-w-0 truncate font-mono text-xs" title={client.lastKnownIPv6 ?? undefined}>
+                          {client.lastKnownIPv6 ?? "—"}
+                        </dd>
                         <dt class="text-muted-foreground">Notifications</dt>
                         <dd>{NOTIFICATION_LABEL[client.notificationPreference]}</dd>
                       </dl>
