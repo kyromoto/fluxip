@@ -80,6 +80,9 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
           status: ex.status,
           attempt: ex.attempt,
           error: ex.error,
+          startedAt: ex.startedAt,
+          completedAt: ex.completedAt,
+          failedAt: ex.failedAt,
         })),
     }));
 

@@ -42,6 +42,17 @@ const ROUTES: RouteMeta[] = [
     },
   },
   {
+    pattern: "/ip-clients/:ipClientId/history",
+    resolve: async ({ ipClientId }) => {
+      const label = await fetchDeviceLabel(ipClientId).catch(() => ipClientId);
+      return [
+        { label: "Devices", href: "/ip-clients" },
+        { label, href: `/ip-clients/${ipClientId}/actions` },
+        { label: "Reported updates" },
+      ];
+    },
+  },
+  {
     pattern: "/actions/:actionId/executions",
     resolve: async ({ actionId }) => {
       // This route isn't nested under its device in the URL, so the device

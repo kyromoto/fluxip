@@ -3,6 +3,7 @@ import { lazy } from "solid-js";
 import { ProtectedLayout } from "./components/layout/ProtectedLayout";
 
 const IpClients = lazy(() => import("./pages/IpClients"));
+const DeviceHistory = lazy(() => import("./pages/DeviceHistory"));
 const Actions = lazy(() => import("./pages/Actions"));
 const Credentials = lazy(() => import("./pages/Credentials"));
 const Account = lazy(() => import("./pages/Account"));
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/" component={IpClients} />
         <Route path="/ip-clients" component={IpClients} />
         <Route path="/ip-clients/:ipClientId/actions" component={Actions} />
+        <Route path="/ip-clients/:ipClientId/history" component={DeviceHistory} />
         <Route path="/actions/:actionId/executions" component={ExecutionHistory} />
         <Route path="/credentials" component={Credentials} />
         <Route path="/notifications" component={NotificationSettings} />

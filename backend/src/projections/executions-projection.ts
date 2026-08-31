@@ -17,6 +17,9 @@ export interface ExecutionSummary {
   status: ActionExecutionState["status"];
   attempt: number;
   error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
 }
 
 function projectionKey(accountId: string, actionId: string): string {
@@ -34,6 +37,9 @@ function toSummary(state: ActionExecutionState): ExecutionSummary | null {
     status: state.status,
     attempt: state.attempt,
     error: state.error,
+    startedAt: state.startedAt,
+    completedAt: state.completedAt,
+    failedAt: state.failedAt,
   };
 }
 

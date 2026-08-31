@@ -99,6 +99,9 @@ One independent run of one `action`, for one triggering cause. Given its own agg
 | `status` | `running` \| `succeeded` \| `failed` | |
 | `attempt` | integer | 1-based; increments across `retry_scheduled` |
 | `error` | string \| null | Present when `status = failed` |
+| `startedAt` | timestamp | From `started` |
+| `completedAt` | timestamp \| null | From `succeeded`, if it did |
+| `failedAt` | timestamp \| null | From `failed`, if it did (overwritten on each retry's failure) |
 
 **Events**:
 

@@ -141,8 +141,11 @@ export default function IpClients() {
                         <dd>{NOTIFICATION_LABEL[client.notificationPreference]}</dd>
                       </dl>
                     </CardContent>
-                    <Show when={client.status !== "decommissioned"}>
-                      <CardFooter class="flex flex-wrap gap-2">
+                    <CardFooter class="flex flex-wrap gap-2">
+                      <Button as="a" href={`/ip-clients/${client.ipClientId}/history`} size="sm" variant="outline">
+                        Reported updates
+                      </Button>
+                      <Show when={client.status !== "decommissioned"}>
                         <Button size="sm" variant="outline" onClick={() => handleToggle(client.ipClientId, client.status)}>
                           {client.status === "enabled" ? "Disable" : "Enable"}
                         </Button>
@@ -152,8 +155,8 @@ export default function IpClients() {
                         <Button size="sm" variant="destructive" onClick={() => handleDecommission(client.ipClientId)}>
                           Decommission
                         </Button>
-                      </CardFooter>
-                    </Show>
+                      </Show>
+                    </CardFooter>
                   </Card>
                 )}
               </For>

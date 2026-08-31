@@ -15,6 +15,13 @@ interface ExecutionSummary {
   status: "running" | "succeeded" | "failed";
   attempt: number;
   error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+}
+
+function executionTime(execution: ExecutionSummary): string {
+  return execution.completedAt ?? execution.failedAt ?? execution.startedAt ?? "—";
 }
 
 const TRIGGERED_BY_LABEL: Record<ExecutionSummary["triggeredBy"], string> = {
@@ -73,6 +80,7 @@ export default function ExecutionHistory() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Time</TableHead>
                     <TableHead>Triggered by</TableHead>
                     <TableHead>Address used</TableHead>
                     <TableHead>Status</TableHead>
@@ -84,6 +92,7 @@ export default function ExecutionHistory() {
                   <For each={items()}>
                     {(execution) => (
                       <TableRow>
+                        <TableCell class="font-mono text-xs">{executionTime(execution)}</TableCell>
                         <TableCell>{TRIGGERED_BY_LABEL[execution.triggeredBy]}</TableCell>
                         <TableCell class="font-mono text-xs">
                           {execution.ipValuesUsed.ipv4 ?? "—"} / {execution.ipValuesUsed.ipv6 ?? "—"}
@@ -108,6 +117,8 @@ export default function ExecutionHistory() {
                         <span class="text-xs text-muted-foreground">{STATUS_LABEL[execution.status]}</span>
                       </div>
                       <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                        <dt class="text-muted-foreground">Time</dt>
+                        <dd class="font-mono text-xs">{executionTime(execution)}</dd>
                         <dt class="text-muted-foreground">Address used</dt>
                         <dd class="font-mono text-xs">
                           {execution.ipValuesUsed.ipv4 ?? "—"} / {execution.ipValuesUsed.ipv6 ?? "—"}

@@ -3,6 +3,7 @@ import {
   ActionExecutionEventName,
   type ActionExecutionFailedData,
   type ActionExecutionStartedData,
+  type ActionExecutionSucceededData,
   type IpValuesUsed,
   type TriggeredBy,
 } from "./events.js";
@@ -18,6 +19,9 @@ export interface ActionExecutionState {
   attempt: number;
   status: "running" | "succeeded" | "failed";
   error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
 }
 
 export const initialActionExecutionState: ActionExecutionState = {
@@ -31,6 +35,9 @@ export const initialActionExecutionState: ActionExecutionState = {
   attempt: 0,
   status: "running",
   error: null,
+  startedAt: null,
+  completedAt: null,
+  failedAt: null,
 };
 
 export function actionExecutionReducer(
@@ -51,13 +58,16 @@ export function actionExecutionReducer(
         ipValuesUsed: data.ipValuesUsed,
         attempt: data.attempt,
         status: "running",
+        startedAt: data.startedAt,
       };
     }
-    case ActionExecutionEventName.Succeeded:
-      return { ...state, status: "succeeded", error: null };
+    case ActionExecutionEventName.Succeeded: {
+      const data = event.data as ActionExecutionSucceededData;
+      return { ...state, status: "succeeded", error: null, completedAt: data.completedAt };
+    }
     case ActionExecutionEventName.Failed: {
       const data = event.data as ActionExecutionFailedData;
-      return { ...state, status: "failed", attempt: data.attempt, error: data.error };
+      return { ...state, status: "failed", attempt: data.attempt, error: data.error, failedAt: data.failedAt };
     }
     default:
       return state;
