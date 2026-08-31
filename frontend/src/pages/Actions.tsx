@@ -190,7 +190,7 @@ export default function Actions() {
               />
             }
           >
-            <div class="space-y-3">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <For each={items()}>
                 {(action) => (
                   <Card>
