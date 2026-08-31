@@ -3,7 +3,6 @@ import { createResource, createSignal, For, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "~/components/ui/table";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
 import { ActionWizard, type ExistingAction } from "~/flows/action-wizard/ActionWizard";
@@ -177,56 +176,7 @@ export default function Actions() {
               />
             }
           >
-            <div class="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Address families</TableHead>
-                    <TableHead>Zone</TableHead>
-                    <TableHead>Record</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>History</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <For each={items()}>
-                    {(action) => (
-                      <TableRow>
-                        <TableCell>Update DNS record</TableCell>
-                        <TableCell>{formatAddressFamilies(action.addressFamilies)}</TableCell>
-                        <TableCell>{action.config?.zone}</TableCell>
-                        <TableCell>{action.config?.recordName}</TableCell>
-                        <TableCell>{STATUS_LABEL[action.status]}</TableCell>
-                        <TableCell>
-                          <a href={`/actions/${action.actionId}/executions`} class="hover:underline">
-                            View history
-                          </a>
-                        </TableCell>
-                        <TableCell>
-                          <Show when={action.status !== "detached"}>
-                            <div class="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" onClick={() => setWizardTarget(toExistingAction(action))}>
-                                Edit
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => handleToggle(action.actionId, action.status)}>
-                                {action.status === "enabled" ? "Disable" : "Enable"}
-                              </Button>
-                              <Button size="sm" variant="destructive" onClick={() => handleDetach(action.actionId)}>
-                                Detach
-                              </Button>
-                            </div>
-                          </Show>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </For>
-                </TableBody>
-              </Table>
-            </div>
-
-            <div class="space-y-3 md:hidden">
+            <div class="space-y-3">
               <For each={items()}>
                 {(action) => (
                   <Card>
