@@ -8,7 +8,7 @@ import { createActionExecutionQueue, createDebounceQueue, getRedisConnection } f
 import { scheduleDebounce } from "../../src/adapters/queue-bullmq/debounce-scheduler.js";
 import { loadConfig } from "../../src/config/env.js";
 import { buildDomainEvent } from "../../src/domain/cloud-events.js";
-import { ACTION_AGGREGATE_TYPE, ActionEventName, UPDATE_DNS_RECORD_ACTION_TYPE, type ActionAttachedData, type AddressFamily } from "../../src/domain/action/events.js";
+import { ACTION_AGGREGATE_TYPE, ActionEventName, HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE, type ActionAttachedData, type AddressFamily } from "../../src/domain/action/events.js";
 import { ACTION_EXECUTION_AGGREGATE_TYPE } from "../../src/domain/action-execution/events.js";
 import { actionExecutionReducer, initialActionExecutionState } from "../../src/domain/action-execution/action-execution-aggregate.js";
 import { generateCredential } from "../../src/domain/ip-client/credential.js";
@@ -25,7 +25,7 @@ const config = loadConfig({
 });
 
 class RejectingExecutor implements ActionExecutor {
-  readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
+  readonly type = HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE;
   async execute(_config: unknown, _ipValues: ActionExecutionIpValues): Promise<ActionExecutionResult> {
     throw new Error('Hetzner DNS API rejected the update (403): zone "zone1" not found or access denied');
   }
@@ -108,7 +108,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       actionId,
       accountId: accountId,
       ipClientId,
-      type: UPDATE_DNS_RECORD_ACTION_TYPE,
+      type: HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
       addressFamilies,
       config: { providerCredentialId, zone: "zone1", recordName: "home.example.com" },
       attachedAt: new Date().toISOString(),

@@ -16,7 +16,7 @@ interface ProviderCredentialSummary {
 
 /** Credential Type required by each Action type (FR-011) — only one Action type exists today. */
 const REQUIRED_PROVIDER: Record<ActionWizardData["type"], string> = {
-  update_dns_record: "hetzner",
+  hetzner_cloud_dns_update: "hetzner",
 };
 
 async function fetchCredentials(): Promise<ProviderCredentialSummary[]> {

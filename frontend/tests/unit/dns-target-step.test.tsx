@@ -25,7 +25,7 @@ afterEach(() => {
 
 function baseData(overrides: Partial<ActionWizardData> = {}): ActionWizardData {
   return {
-    type: "update_dns_record",
+    type: "hetzner_cloud_dns_update",
     providerCredentialId: "",
     zone: "zone-123",
     recordName: "home.example.com",

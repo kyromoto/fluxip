@@ -2,7 +2,7 @@ import type { Redis } from "ioredis";
 import { Worker, type Job } from "bullmq";
 import type { Config } from "../../config/env.js";
 import { actionReducer, initialActionState } from "../../domain/action/action-aggregate.js";
-import { ACTION_AGGREGATE_TYPE, UPDATE_DNS_RECORD_ACTION_TYPE, type UpdateDnsRecordConfig } from "../../domain/action/events.js";
+import { ACTION_AGGREGATE_TYPE, HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE, type UpdateDnsRecordConfig } from "../../domain/action/events.js";
 import {
   actionExecutionReducer,
   initialActionExecutionState,
@@ -257,7 +257,7 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
           };
 
           const resolvedConfig =
-            actionState.type === UPDATE_DNS_RECORD_ACTION_TYPE
+            actionState.type === HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE
               ? await resolveDnsExecutorConfig(deps, accountId, actionState.config as UpdateDnsRecordConfig)
               : undefined;
 

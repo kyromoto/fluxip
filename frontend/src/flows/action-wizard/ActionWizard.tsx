@@ -8,7 +8,7 @@ import { DnsTargetStep } from "./steps/DnsTargetStep";
 import { ReviewActionStep } from "./steps/ReviewActionStep";
 
 export interface ActionWizardData {
-  type: "update_dns_record";
+  type: "hetzner_cloud_dns_update";
   providerCredentialId: string;
   zone: string;
   recordName: string;
@@ -46,7 +46,7 @@ export function ActionWizard(props: ActionWizardProps) {
   const existingAction = untrack(() => props.existingAction);
   const initialData: ActionWizardData = existingAction
     ? {
-        type: "update_dns_record",
+        type: "hetzner_cloud_dns_update",
         providerCredentialId: existingAction.providerCredentialId,
         zone: existingAction.zone,
         recordName: existingAction.recordName,
@@ -54,7 +54,7 @@ export function ActionWizard(props: ActionWizardProps) {
         ipv6: existingAction.ipv6,
       }
     : {
-        type: "update_dns_record",
+        type: "hetzner_cloud_dns_update",
         providerCredentialId: "",
         zone: "",
         recordName: "",
@@ -88,7 +88,7 @@ export function ActionWizard(props: ActionWizardProps) {
         await api.put(`/actions/${existingAction.actionId}`, { addressFamilies, config });
       } else {
         await api.post(`/ip-clients/${props.ipClientId}/actions`, {
-          type: "update_dns_record",
+          type: "hetzner_cloud_dns_update",
           addressFamilies,
           config,
         });

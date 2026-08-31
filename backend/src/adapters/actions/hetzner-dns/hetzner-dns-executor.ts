@@ -1,4 +1,4 @@
-import { UPDATE_DNS_RECORD_ACTION_TYPE } from "../../../domain/action/events.js";
+import { HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE } from "../../../domain/action/events.js";
 import type {
   ActionExecutionIpValues,
   ActionExecutionResult,
@@ -32,7 +32,7 @@ export interface HetznerDnsResolvedConfig {
  * adapter just does whatever ipValues it's given.
  */
 export class HetznerDnsExecutor implements ActionExecutor<HetznerDnsResolvedConfig> {
-  readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
+  readonly type = HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE;
 
   async execute(
     config: HetznerDnsResolvedConfig,

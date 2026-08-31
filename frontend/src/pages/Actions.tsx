@@ -196,7 +196,7 @@ export default function Actions() {
                   <Card>
                     <CardContent class="space-y-3 p-4">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="font-medium">Update DNS record</span>
+                        <span class="font-medium">Hetzner Cloud DNS Update</span>
                         <span class="text-xs text-muted-foreground">{STATUS_LABEL[action.status]}</span>
                       </div>
                       <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">

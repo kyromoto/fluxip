@@ -16,7 +16,7 @@ import { createActionExecutionQueue, createDebounceQueue, getRedisConnection } f
 import { scheduleDebounce } from "../../src/adapters/queue-bullmq/debounce-scheduler.js";
 import { loadConfig } from "../../src/config/env.js";
 import { buildDomainEvent } from "../../src/domain/cloud-events.js";
-import { UPDATE_DNS_RECORD_ACTION_TYPE } from "../../src/domain/action/events.js";
+import { HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE } from "../../src/domain/action/events.js";
 import { AccountService } from "../../src/domain/account/account-service.js";
 import { IP_CLIENT_AGGREGATE_TYPE, IpClientEventName, type IpClientIpReportReceivedData } from "../../src/domain/ip-client/events.js";
 import type { ActionExecutionIpValues, ActionExecutionResult, ActionExecutor } from "../../src/ports/action-executor.js";
@@ -30,7 +30,7 @@ const config = loadConfig({
 });
 
 class ToggleableExecutor implements ActionExecutor {
-  readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
+  readonly type = HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE;
   shouldFail = true;
 
   async execute(_config: unknown, ipValues: ActionExecutionIpValues): Promise<ActionExecutionResult> {
@@ -160,7 +160,7 @@ describe("Review, retry, and notification (User Story 3)", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        type: "update_dns_record",
+        type: "hetzner_cloud_dns_update",
         addressFamilies: ["ipv4"],
         config: { providerCredentialId: credentialId, zone: "zone1", recordName: "home.example.com" },
       }),

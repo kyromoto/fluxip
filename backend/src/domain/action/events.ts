@@ -11,7 +11,7 @@ export const ActionEventName = {
 export type AddressFamily = "ipv4" | "ipv6";
 
 /** The only Action type in this iteration (FR-008); more can be added without touching this shape's callers (FR-009). */
-export const UPDATE_DNS_RECORD_ACTION_TYPE = "update_dns_record";
+export const HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE = "hetzner_cloud_dns_update";
 
 export interface UpdateDnsRecordConfig {
   providerCredentialId: string;

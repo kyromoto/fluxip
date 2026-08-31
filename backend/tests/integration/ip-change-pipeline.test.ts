@@ -11,7 +11,7 @@ import { buildDomainEvent } from "../../src/domain/cloud-events.js";
 import {
   ACTION_AGGREGATE_TYPE,
   ActionEventName,
-  UPDATE_DNS_RECORD_ACTION_TYPE,
+  HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
   type ActionAttachedData,
 } from "../../src/domain/action/events.js";
 import {
@@ -39,7 +39,7 @@ const config = loadConfig({
 });
 
 class StubExecutor implements ActionExecutor {
-  readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
+  readonly type = HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE;
   public calls: ActionExecutionIpValues[] = [];
 
   async execute(_config: unknown, ipValues: ActionExecutionIpValues): Promise<ActionExecutionResult> {
@@ -154,7 +154,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
       actionId,
       accountId: accountId,
       ipClientId,
-      type: UPDATE_DNS_RECORD_ACTION_TYPE,
+      type: HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
       addressFamilies: ["ipv4"],
       config: { providerCredentialId: credentialId, zone: "zone1", recordName: "home.example.com" },
       attachedAt: new Date().toISOString(),

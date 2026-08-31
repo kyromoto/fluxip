@@ -9,7 +9,7 @@ import { createActionExecutionQueue, createDebounceQueue, getRedisConnection } f
 import { createTriggerRoutes } from "../../src/adapters/http/routes/trigger.js";
 import { loadConfig } from "../../src/config/env.js";
 import { buildDomainEvent } from "../../src/domain/cloud-events.js";
-import { UPDATE_DNS_RECORD_ACTION_TYPE, ACTION_AGGREGATE_TYPE, ActionEventName, type ActionAttachedData } from "../../src/domain/action/events.js";
+import { HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE, ACTION_AGGREGATE_TYPE, ActionEventName, type ActionAttachedData } from "../../src/domain/action/events.js";
 import { ACTION_EXECUTION_AGGREGATE_TYPE } from "../../src/domain/action-execution/events.js";
 import { actionExecutionReducer, initialActionExecutionState } from "../../src/domain/action-execution/action-execution-aggregate.js";
 import { generateCredential } from "../../src/domain/ip-client/credential.js";
@@ -31,7 +31,7 @@ const IP_CLIENT_COUNT = 60;
 const NOTIFIED_COUNT = 10;
 
 class CountingExecutor implements ActionExecutor {
-  readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
+  readonly type = HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE;
 
   async execute(_config: unknown, ipValues: ActionExecutionIpValues): Promise<ActionExecutionResult> {
     return { summary: `stub updated with ${JSON.stringify(ipValues)}` };
@@ -207,7 +207,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
         actionId,
         accountId: accountId,
         ipClientId,
-        type: UPDATE_DNS_RECORD_ACTION_TYPE,
+        type: HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
         addressFamilies: ["ipv4"],
         config: { providerCredentialId: credentialId, zone: "zone1", recordName: `device-${i}.example.com` },
         attachedAt: new Date().toISOString(),

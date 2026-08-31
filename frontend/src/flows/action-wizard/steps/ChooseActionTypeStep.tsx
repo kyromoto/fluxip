@@ -11,7 +11,7 @@ export const ChooseActionTypeStep: Component<WizardStepComponentProps<ActionWiza
     <div class="space-y-3">
       <h2 class="text-lg font-semibold">What should happen when the IP changes?</h2>
       <div class="rounded-md border border-primary bg-accent/50 p-4">
-        <p class="font-medium">Update a DNS record</p>
+        <p class="font-medium">Hetzner Cloud DNS Update</p>
         <p class="text-sm text-muted-foreground">
           Keep a Hetzner DNS record pointed at this device's current address. More action types
           will appear here in the future.

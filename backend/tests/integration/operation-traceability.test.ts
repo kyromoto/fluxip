@@ -19,7 +19,7 @@ import { REDACT_FIELD_PATTERNS } from "../../src/observability/logging.js";
 import {
   ACTION_AGGREGATE_TYPE,
   ActionEventName,
-  UPDATE_DNS_RECORD_ACTION_TYPE,
+  HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
   type ActionAttachedData,
 } from "../../src/domain/action/events.js";
 import { generateCredential } from "../../src/domain/ip-client/credential.js";
@@ -40,7 +40,7 @@ const config = loadConfig({
 
 /** Fails deterministically for one zone so a single fan-out produces both a success and a failure (quickstart Scenario 1). */
 class ZoneAwareExecutor implements ActionExecutor {
-  readonly type = UPDATE_DNS_RECORD_ACTION_TYPE;
+  readonly type = HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE;
 
   async execute(resolvedConfig: unknown, ipValues: ActionExecutionIpValues): Promise<ActionExecutionResult> {
     const { zoneId } = resolvedConfig as { zoneId: string };
@@ -185,7 +185,7 @@ describe("Operation traceability (User Story 1)", () => {
         actionId,
         accountId: accountId,
         ipClientId,
-        type: UPDATE_DNS_RECORD_ACTION_TYPE,
+        type: HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
         addressFamilies: ["ipv4"],
         config: { providerCredentialId: credentialId, zone, recordName: "home.example.com" },
         attachedAt: new Date().toISOString(),

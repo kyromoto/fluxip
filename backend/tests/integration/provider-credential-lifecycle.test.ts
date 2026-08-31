@@ -82,7 +82,7 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          type: "update_dns_record",
+          type: "hetzner_cloud_dns_update",
           addressFamilies: ["ipv4"],
           config: { providerCredentialId: credentialId, zone: "shared-zone", recordName },
         }),

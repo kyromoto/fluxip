@@ -6,7 +6,7 @@ import { actionReducer, initialActionState, type ActionState } from "../../../do
 import {
   ACTION_AGGREGATE_TYPE,
   ActionEventName,
-  UPDATE_DNS_RECORD_ACTION_TYPE,
+  HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
   type ActionAttachedData,
   type ActionDetachedData,
   type ActionDisabledData,
@@ -68,8 +68,8 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       .json<{ type?: string; addressFamilies?: AddressFamily[]; config?: UpdateDnsRecordConfig }>()
       .catch(() => ({}) as Record<string, never>);
 
-    if (body.type !== UPDATE_DNS_RECORD_ACTION_TYPE) {
-      return c.json({ error: `unsupported action type; only "${UPDATE_DNS_RECORD_ACTION_TYPE}" exists in this iteration` }, 400);
+    if (body.type !== HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE) {
+      return c.json({ error: `unsupported action type; only "${HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE}" exists in this iteration` }, 400);
     }
     if (!body.addressFamilies || body.addressFamilies.length === 0) {
       return c.json({ error: "addressFamilies must be a non-empty array of \"ipv4\"/\"ipv6\"" }, 400);
