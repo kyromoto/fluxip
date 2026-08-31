@@ -134,22 +134,36 @@ export default function Actions() {
 
   return (
     <div class="space-y-6">
-      <div class="flex flex-wrap items-center gap-2 border-b pb-4">
-        <Button as="a" href={`/ip-clients/${params.ipClientId}/history`} size="sm" variant="outline">
-          Reported updates
-        </Button>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b pb-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <Button as="a" href={`/ip-clients/${params.ipClientId}/history`} size="sm" variant="outline">
+            Reported updates
+          </Button>
+        </div>
         <Show when={device()}>
           {(client) => (
             <Show when={client().status !== "decommissioned"}>
-              <Button size="sm" variant="outline" onClick={() => handleDeviceToggle(client().status)}>
-                {client().status === "enabled" ? "Disable" : "Enable"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleDeviceRotate()}>
-                Rotate credential
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => handleDeviceDecommission()}>
-                Decommission
-              </Button>
+              <div class="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  class="border-amber-500 text-amber-600 hover:bg-amber-50 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-950"
+                  onClick={() => handleDeviceToggle(client().status)}
+                >
+                  {client().status === "enabled" ? "Disable" : "Enable"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  class="border-amber-500 text-amber-600 hover:bg-amber-50 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-950"
+                  onClick={() => handleDeviceRotate()}
+                >
+                  Rotate credential
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => handleDeviceDecommission()}>
+                  Decommission
+                </Button>
+              </div>
             </Show>
           )}
         </Show>
