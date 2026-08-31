@@ -134,7 +134,7 @@ export default function Actions() {
 
   return (
     <div class="space-y-6">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b pb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2">
           <Button as="a" href={`/ip-clients/${params.ipClientId}/history`} size="sm" variant="outline">
             Reported updates
