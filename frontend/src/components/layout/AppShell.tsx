@@ -1,5 +1,6 @@
 import { A } from "@solidjs/router";
 import { For, type JSX } from "solid-js";
+import { Logo } from "~/components/brand/Logo";
 import { Button } from "~/components/ui/button";
 import { signOut } from "~/services/auth";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -23,6 +24,10 @@ export function AppShell(props: { children?: JSX.Element }) {
     <div class="min-h-screen bg-background text-foreground">
       <header class="border-b">
         <div class="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <A href="/" class="flex items-center gap-2" aria-label="FluxIP home">
+            <Logo size={22} />
+            <span class="text-base font-semibold tracking-tight">FluxIP</span>
+          </A>
           <nav class="flex flex-wrap items-center gap-4 text-sm font-medium">
             <For each={NAV_LINKS}>
               {(link) => (
