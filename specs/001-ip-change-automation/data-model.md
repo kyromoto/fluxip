@@ -1,18 +1,18 @@
 # Phase 1 Data Model: IP-Change-Triggered Automation (FluxIP Core)
 
-This document defines the event-sourced domain model: one section per aggregate (its own independent event stream, identified by `aggregate_id`), the events it emits, its derived state, and its invariants. All aggregate and event names were reviewed and confirmed with the team before being written here (see plan.md's naming-confirmation step). Every event additionally carries a `tenant_id` (the owning `account`'s aggregate ID) per the tenant-isolation guardrail in research.md §8, even where not repeated below.
+This document defines the event-sourced domain model: one section per aggregate (its own independent event stream, identified by `aggregate_id`), the events it emits, its derived state, and its invariants. All aggregate and event names were reviewed and confirmed with the team before being written here (see plan.md's naming-confirmation step). Every event additionally carries an `account_id` (the owning `account`'s aggregate ID) per the account-isolation guardrail in research.md §8, even where not repeated below.
 
 Terminology note: this document uses **IP Client** throughout as the technical/aggregate name for what the spec (spec.md) calls a **Trigger Device** — same concept, business term vs. code/event name.
 
 ## Aggregate: `account`
 
-The tenant root. One `account` aggregate exists per registered user; its aggregate ID **is** the tenant ID, and (per research.md §7) is set to the Logto subject claim from the verified OIDC token.
+The account-isolation root — every other aggregate's `accountId` field points back to this aggregate's ID. One `account` aggregate exists per registered user, and (per research.md §7) its aggregate ID is set to the Logto subject claim from the verified OIDC token.
 
 **Derived state**:
 
 | Field | Type | Notes |
 |---|---|---|
-| `accountId` | string (= tenant ID = Logto subject) | Primary identity |
+| `accountId` | string (= Logto subject) | Primary identity |
 | `registeredAt` | timestamp | From `registered` |
 | `deviceLimit` | integer | Starts at the deployment-configured default (`BACKEND_DEFAULT_IP_CLIENT_LIMIT` env var); overridden by `device_limit_overridden` |
 | `status` | `active` \| `closed` | Terminal once `closed` |
@@ -23,9 +23,9 @@ The tenant root. One `account` aggregate exists per registered user; its aggrega
 - `account.device_limit_overridden` — `{ accountId, previousLimit, newLimit, overriddenBy, overriddenAt }` (`overriddenBy` = the administrator's identifier; FR-034)
 - `account.closed` — `{ accountId, closedAt }`
 
-**Invariants**: `deviceLimit >= 0`. FR-003's device-count check (create-IP-Client is rejected once `deviceLimit` is reached) is evaluated by replaying this aggregate alongside a count of that tenant's non-decommissioned `ip_client` aggregates.
+**Invariants**: `deviceLimit >= 0`. FR-003's device-count check (create-IP-Client is rejected once `deviceLimit` is reached) is evaluated by replaying this aggregate alongside a count of that account's non-decommissioned `ip_client` aggregates.
 
-**Lifecycle note (research.md §12)**: `account.closed` is not a normal terminal state to query later — it is the trigger for an immediate, synchronous hard-delete of every event for this `tenant_id` across all aggregates (FR-032), plus purge of any in-flight BullMQ jobs and Redis projection keys namespaced to it. After that purge completes, no aggregate for this tenant exists to replay.
+**Lifecycle note (research.md §12)**: `account.closed` is not a normal terminal state to query later — it is the trigger for an immediate, synchronous hard-delete of every event for this `account_id` across all aggregates (FR-032), plus purge of any in-flight BullMQ jobs and Redis projection keys namespaced to it. After that purge completes, no aggregate for this account exists to replay.
 
 ## Aggregate: `ip_client`
 
@@ -36,7 +36,7 @@ Represents one registered device (the spec's "Trigger Device") that reports publ
 | Field | Type | Notes |
 |---|---|---|
 | `ipClientId` | string | Aggregate ID |
-| `accountId` | string | Owning tenant |
+| `accountId` | string | Owning account |
 | `label` | string | User-chosen display name |
 | `credentialHash` | string | Salted hash of the current system-generated reporting credential (research.md §14) — never the plaintext |
 | `status` | `enabled` \| `disabled` \| `decommissioned` | |
@@ -65,7 +65,7 @@ A user-configured unit of work attached to one `ip_client`.
 | Field | Type | Notes |
 |---|---|---|
 | `actionId` | string | Aggregate ID |
-| `accountId` | string | Owning tenant |
+| `accountId` | string | Owning account |
 | `ipClientId` | string | The IP Client this Action reacts to |
 | `type` | string, extensible | `"update_dns_record"` is the only value in this iteration (FR-008/FR-009) |
 | `addressFamilies` | subset of `{ipv4, ipv6}` | Which reported families this Action requires (FR-025/FR-026/FR-027) |
@@ -90,7 +90,7 @@ One independent run of one `action`, for one triggering cause. Given its own agg
 | Field | Type | Notes |
 |---|---|---|
 | `executionId` | string | Aggregate ID |
-| `accountId` | string | Owning tenant |
+| `accountId` | string | Owning account |
 | `actionId` | string | The Action being executed |
 | `ipClientId` | string | Denormalized for query convenience |
 | `triggeredBy` | `ip_change` \| `manual` | FR-010 vs FR-023 |
@@ -119,7 +119,7 @@ A user-owned secret used by one or more of that user's Actions to authenticate a
 | Field | Type | Notes |
 |---|---|---|
 | `credentialId` | string | Aggregate ID |
-| `accountId` | string | Owning tenant |
+| `accountId` | string | Owning account |
 | `provider` | string, extensible | `"hetzner"` in this iteration |
 | `label` | string | User-chosen display name |
 | `encryptedSecretRef` | string | Reference to the encrypted secret value (reversibly encrypted, unlike the IP Client credential — this one must be decrypted to call the provider's API) |
@@ -142,7 +142,7 @@ A user-owned destination that receives notifications about Action executions.
 | Field | Type | Notes |
 |---|---|---|
 | `channelId` | string | Aggregate ID |
-| `accountId` | string | Owning tenant |
+| `accountId` | string | Owning account |
 | `type` | string, extensible | `"email"` in this iteration |
 | `addresses` | string[] | One or more email addresses (FR-028) |
 | `status` | `active` \| `revoked` | |
@@ -173,7 +173,7 @@ action (many) ──> (1) provider_credential   [config.providerCredentialId]
 
 ## Cross-cutting rules (apply to every aggregate above)
 
-1. **Tenant isolation** (FR-012/FR-013): every event carries `accountId`/`tenant_id`; every read/write repository call requires it as a parameter and filters on it at the query level (research.md §8), never only in application logic.
-2. **Event store immutability, with one exception**: all events above are append-only and never mutated or deleted, *except* the full hard-delete of a tenant's events triggered by `account.closed` (research.md §12).
+1. **Account isolation** (FR-012/FR-013): every event carries `accountId`; every read/write repository call requires it as a parameter and filters on it at the query level (research.md §8), never only in application logic.
+2. **Event store immutability, with one exception**: all events above are append-only and never mutated or deleted, *except* the full hard-delete of an account's events triggered by `account.closed` (research.md §12).
 3. **Projections are disposable**: any Redis-held read model (IP Client lists, execution history pages, last-known-IP for UI display) is rebuilt from these events and is never consulted to decide whether an Action should run — that decision always replays Postgres directly (research.md §8).
 4. **Replay metrics**: every aggregate replay is timed and counted, labeled by aggregate type (and `ipClientId` where applicable), per research.md §10.

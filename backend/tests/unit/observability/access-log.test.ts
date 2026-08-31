@@ -14,14 +14,14 @@ function notImplemented(): never {
   throw new Error("must not be called for a request rejected before authentication");
 }
 
-// resolveTenantId resolving to null (unknown IP Client ID) is the earliest point
+// resolveAccountId resolving to null (unknown IP Client ID) is the earliest point
 // a bad Trigger Device credential is rejected without ever appending an event or logging.
 const stubEventStore: EventStore = {
   append: notImplemented,
   readStream: notImplemented,
   listAggregateIds: notImplemented,
-  resolveTenantId: () => Promise.resolve(null),
-  deleteTenant: notImplemented,
+  resolveAccountId: () => Promise.resolve(null),
+  deleteAccount: notImplemented,
 };
 const stubDebounceQueue = {} as Queue<DebounceJobData>;
 const stubConfig = {} as Config;
@@ -53,7 +53,7 @@ describe("Access Log middleware (User Story 2)", () => {
     app.use("*", createAccessLogMiddleware());
     app.route("/", createTriggerRoutes({ config: stubConfig, eventStore: stubEventStore, debounceQueue: stubDebounceQueue }));
 
-    // A syntactically valid but unknown IP Client ID — resolveTenantId returns null,
+    // A syntactically valid but unknown IP Client ID — resolveAccountId returns null,
     // rejecting the request (401) without ever reaching an append or a log call.
     const res = await app.request("/nic/update?hostname=test&myip=203.0.113.10", {
       headers: { authorization: "Basic bm90LXJlYWw6YmFkLXBhc3N3b3Jk", "x-forwarded-for": "198.51.100.7" },

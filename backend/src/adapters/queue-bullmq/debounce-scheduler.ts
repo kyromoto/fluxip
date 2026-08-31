@@ -3,7 +3,7 @@ import type { Config } from "../../config/env.js";
 
 export interface DebounceJobData {
   ipClientId: string;
-  tenantId: string;
+  accountId: string;
 }
 
 /**
@@ -22,11 +22,11 @@ export async function scheduleDebounce(
   queue: Queue<DebounceJobData>,
   config: Config,
   ipClientId: string,
-  tenantId: string,
+  accountId: string,
 ): Promise<void> {
   await queue.add(
     "settle",
-    { ipClientId, tenantId },
+    { ipClientId, accountId },
     {
       delay: config.ipClientDebounceMs,
       deduplication: { id: ipClientId, extend: true, replace: true, keepLastIfActive: true },

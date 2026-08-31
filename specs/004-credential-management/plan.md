@@ -14,7 +14,7 @@ Extends the existing, already-partially-implemented `provider_credential` aggreg
 
 **Primary Dependencies**: Backend — Hono, the existing Postgres-backed `EventStore` port, the existing AES-256-GCM `secret-encryption.ts` module (reused unmodified), `ulid`. Frontend — the existing Solid UI components already in `frontend/src/components/ui/` (`dialog`, `select`, `text-field`, `card`, `alert`, `button`), `@solidjs/router`. No new runtime dependency is introduced on either side.
 
-**Storage**: PostgreSQL (append-only event store, unchanged) via the existing `provider_credential` aggregate stream. No new Redis projection: the Credentials list stays served by direct aggregate replay per tenant, exactly as the existing `GET /provider-credentials` already does — bounded by SC-006's small scale (≥5 entries), not by list volume that would justify a projection.
+**Storage**: PostgreSQL (append-only event store, unchanged) via the existing `provider_credential` aggregate stream. No new Redis projection: the Credentials list stays served by direct aggregate replay per account, exactly as the existing `GET /provider-credentials` already does — bounded by SC-006's small scale (≥5 entries), not by list volume that would justify a projection.
 
 **Testing**: Vitest for backend unit/contract tests (name-uniqueness rule, masked-value derivation, delete-block logic) and frontend unit tests (Credentials page, DnsTargetStep's empty-state dialog); Testcontainers-backed integration test for the full create → attach-to-Action → delete-blocked → detach → delete-succeeds lifecycle; one new Playwright smoke path extending 003's existing wizard suite (Action wizard with zero credentials → inline create → resume → complete).
 

@@ -18,15 +18,15 @@ export class AccountService {
 
   /**
    * Auto-provisions the FluxIP-side `account` aggregate the first time a
-   * verified tenant is seen. The aggregate ID IS the tenant ID (= Logto
+   * verified account is seen. The aggregate ID IS the account ID (= Logto
    * subject), so this is idempotent: if the stream is non-empty, nothing
    * is appended. Registration/login itself is entirely Logto's — this only
-   * creates FluxIP's own record of the tenant (data-model.md `account`).
+   * creates FluxIP's own record of the account (data-model.md `account`).
    */
-  async ensureProvisioned(tenantId: string): Promise<AccountState> {
+  async ensureProvisioned(accountId: string): Promise<AccountState> {
     const { state, events } = await loadAggregate(
       this.eventStore,
-      { tenantId, aggregateType: ACCOUNT_AGGREGATE_TYPE, aggregateId: tenantId },
+      { accountId, aggregateType: ACCOUNT_AGGREGATE_TYPE, aggregateId: accountId },
       initialAccountState,
       accountReducer,
     );
@@ -36,7 +36,7 @@ export class AccountService {
     }
 
     const data: AccountRegisteredData = {
-      accountId: tenantId,
+      accountId: accountId,
       deviceLimit: this.config.defaultIpClientLimit,
       registeredAt: new Date().toISOString(),
     };
@@ -45,8 +45,8 @@ export class AccountService {
     await this.eventStore.append({
       id: built.id,
       aggregateType: ACCOUNT_AGGREGATE_TYPE,
-      aggregateId: tenantId,
-      tenantId,
+      aggregateId: accountId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: AccountEventName.Registered,
       type: built.type,
@@ -55,13 +55,13 @@ export class AccountService {
       data: built.data,
     });
 
-    return { accountId: tenantId, deviceLimit: this.config.defaultIpClientLimit, status: "active" };
+    return { accountId: accountId, deviceLimit: this.config.defaultIpClientLimit, status: "active" };
   }
 
-  async getState(tenantId: string): Promise<AccountState> {
+  async getState(accountId: string): Promise<AccountState> {
     const { state } = await loadAggregate(
       this.eventStore,
-      { tenantId, aggregateType: ACCOUNT_AGGREGATE_TYPE, aggregateId: tenantId },
+      { accountId, aggregateType: ACCOUNT_AGGREGATE_TYPE, aggregateId: accountId },
       initialAccountState,
       accountReducer,
     );
@@ -76,7 +76,7 @@ export class AccountService {
   ): Promise<AccountState | null> {
     const { state, version } = await loadAggregate(
       this.eventStore,
-      { tenantId: accountId, aggregateType: ACCOUNT_AGGREGATE_TYPE, aggregateId: accountId },
+      { accountId: accountId, aggregateType: ACCOUNT_AGGREGATE_TYPE, aggregateId: accountId },
       initialAccountState,
       accountReducer,
     );
@@ -95,7 +95,7 @@ export class AccountService {
       id: built.id,
       aggregateType: ACCOUNT_AGGREGATE_TYPE,
       aggregateId: accountId,
-      tenantId: accountId,
+      accountId: accountId,
       expectedSequenceNumber: version + 1,
       eventName: AccountEventName.DeviceLimitOverridden,
       type: built.type,

@@ -88,13 +88,13 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
   });
 
   it("registers an IP client, attaches an action, and executes it once on a settled IP change", async () => {
-    const tenantId = `test-tenant-${Date.now()}`;
+    const accountId = `test-account-${Date.now()}`;
     const ipClientId = `test-ip-client-${Date.now()}`;
     const { hash } = generateCredential();
 
     const registeredData: IpClientRegisteredData = {
       ipClientId,
-      accountId: tenantId,
+      accountId: accountId,
       label: "Test device",
       credentialHash: hash,
       registeredAt: new Date().toISOString(),
@@ -104,7 +104,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
       id: registeredEvent.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: IpClientEventName.Registered,
       type: registeredEvent.type,
@@ -120,16 +120,16 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
     // unnoticed (listIpClientsProjection only self-heals when the key is absent).
     const { state: registeredState } = await loadAggregate(
       eventStore,
-      { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+      { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
       initialIpClientState,
       ipClientReducer,
     );
-    await upsertIpClientProjection(redis, tenantId, registeredState);
+    await upsertIpClientProjection(redis, accountId, registeredState);
 
     const credentialId = `test-credential-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
       credentialId,
-      accountId: tenantId,
+      accountId: accountId,
       provider: "hetzner",
       label: "Test credential",
       encryptedSecret: encryptSecret("fake-hetzner-token", config.credentialEncryptionKey),
@@ -140,7 +140,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
       id: storedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: storedEvent.type,
@@ -152,7 +152,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
     const actionId = `test-action-${Date.now()}`;
     const attachedData: ActionAttachedData = {
       actionId,
-      accountId: tenantId,
+      accountId: accountId,
       ipClientId,
       type: UPDATE_DNS_RECORD_ACTION_TYPE,
       addressFamilies: ["ipv4"],
@@ -164,7 +164,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
       id: attachedEvent.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ActionEventName.Attached,
       type: attachedEvent.type,
@@ -176,12 +176,12 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
     async function reportIp(ip: string): Promise<void> {
       const reportData: IpClientIpReportReceivedData = { reportedIPv4: ip, receivedAt: new Date().toISOString() };
       const reportEvent = buildDomainEvent(config, IP_CLIENT_AGGREGATE_TYPE, IpClientEventName.IpReportReceived, reportData);
-      const events = await eventStore.readStream({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
+      const events = await eventStore.readStream({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
       await eventStore.append({
         id: reportEvent.id,
         aggregateType: IP_CLIENT_AGGREGATE_TYPE,
         aggregateId: ipClientId,
-        tenantId,
+        accountId,
         expectedSequenceNumber: events.length + 1,
         eventName: IpClientEventName.IpReportReceived,
         type: reportEvent.type,
@@ -189,7 +189,7 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
         time: reportEvent.time,
         data: reportEvent.data,
       });
-      await scheduleDebounce(debounceQueue, config, ipClientId, tenantId);
+      await scheduleDebounce(debounceQueue, config, ipClientId, accountId);
     }
 
     // Flapping: two rapid reports before the debounce window elapses should settle once, on the latest value.
@@ -197,18 +197,18 @@ describe("IP-change pipeline (register -> report -> debounce -> fan-out -> execu
     await reportIp("203.0.113.42");
 
     await waitFor(async () => {
-      const events = await eventStore.readStream({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
+      const events = await eventStore.readStream({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
       return events.some((e) => e.eventName === IpClientEventName.IpChanged);
     });
 
-    const ipClientEvents = await eventStore.readStream({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
+    const ipClientEvents = await eventStore.readStream({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
     const changedEvents = ipClientEvents.filter((e) => e.eventName === IpClientEventName.IpChanged);
     expect(changedEvents).toHaveLength(1);
     expect((changedEvents[0]?.data as { newIPv4?: string }).newIPv4).toBe("203.0.113.42");
 
     // The devices list (GET /api/ip-clients) is served from this Redis projection, not
     // the event-sourced aggregate directly — it must reflect a settled IP change too.
-    const projected = await listIpClientsProjection(redis, eventStore, tenantId);
+    const projected = await listIpClientsProjection(redis, eventStore, accountId);
     expect(projected.find((c) => c.ipClientId === ipClientId)?.lastKnownIPv4).toBe("203.0.113.42");
 
     await waitFor(() => Promise.resolve(executor.calls.length >= 1));

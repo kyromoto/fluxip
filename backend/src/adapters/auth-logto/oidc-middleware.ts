@@ -3,8 +3,8 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import type { Config } from "../../config/env.js";
 
 export interface AuthContext {
-  /** The verified token's subject — used as tenant_id everywhere (research.md §7). */
-  tenantId: string;
+  /** The verified token's subject — used as account_id everywhere (research.md §7). */
+  accountId: string;
   roles: string[];
 }
 
@@ -26,7 +26,7 @@ function extractRoles(payload: JWTPayload): string[] {
 
 /**
  * Verifies a Logto-issued OIDC access token via JWKS. On success, stores an
- * AuthContext (tenantId = token subject, roles) on the request context under "auth".
+ * AuthContext (accountId = token subject, roles) on the request context under "auth".
  * FluxIP never sees or stores a password — Logto owns the entire login flow (research.md §7).
  */
 export function oidcAuthMiddleware(config: Config) {
@@ -48,7 +48,7 @@ export function oidcAuthMiddleware(config: Config) {
         return c.json({ error: "unauthorized" }, 401);
       }
 
-      const auth: AuthContext = { tenantId: payload.sub, roles: extractRoles(payload) };
+      const auth: AuthContext = { accountId: payload.sub, roles: extractRoles(payload) };
       c.set("auth", auth);
       await next();
     } catch {

@@ -23,7 +23,7 @@ const config = loadConfig(process.env);
  * Postgres+Redis: IP Client enable/disable/rotate/decommission, admin
  * device-limit override + admin-guard rejection, Action
  * reconfigure/enable/disable/detach, and account closure's hard-delete purge.
- * Auth is substituted the same way as tenant-isolation.test.ts (see its
+ * Auth is substituted the same way as account-isolation.test.ts (see its
  * doc comment) since real distinct Logto user tokens aren't obtainable here.
  */
 describe("Account lifecycle (User Story 2)", () => {
@@ -43,10 +43,10 @@ describe("Account lifecycle (User Story 2)", () => {
 
   const app = new Hono();
   app.use("*", async (c, next) => {
-    const tenantId = c.req.header("x-test-tenant") ?? "";
+    const accountId = c.req.header("x-test-account") ?? "";
     const roles = c.req.header("x-test-roles")?.split(",").filter(Boolean) ?? [];
-    c.set("auth", { tenantId, roles });
-    await accountService.ensureProvisioned(tenantId);
+    c.set("auth", { accountId, roles });
+    await accountService.ensureProvisioned(accountId);
     await next();
   });
   app.route("/ip-clients", createIpClientsRoutes({ config, eventStore, redis, accountService }));
@@ -57,7 +57,7 @@ describe("Account lifecycle (User Story 2)", () => {
   const admin = new Hono();
   admin.use("*", async (c, next) => {
     const roles = c.req.header("x-test-roles")?.split(",").filter(Boolean) ?? [];
-    c.set("auth", { tenantId: c.req.header("x-test-tenant") ?? "", roles });
+    c.set("auth", { accountId: c.req.header("x-test-account") ?? "", roles });
     await next();
   });
   admin.use("*", requireAdminRole());
@@ -74,54 +74,54 @@ describe("Account lifecycle (User Story 2)", () => {
     await actionExecutionQueue.close();
   });
 
-  function call(tenantId: string, path: string, init?: RequestInit & { roles?: string[] }): Promise<Response> {
+  function call(accountId: string, path: string, init?: RequestInit & { roles?: string[] }): Promise<Response> {
     const { roles, ...rest } = init ?? {};
     return app.request(path, {
       ...rest,
       headers: {
         ...rest.headers,
-        "x-test-tenant": tenantId,
+        "x-test-account": accountId,
         ...(roles ? { "x-test-roles": roles.join(",") } : {}),
       },
     });
   }
 
   it("enables/disables, rotates the credential of, and decommissions an IP Client", async () => {
-    const tenantId = `test-lifecycle-${Date.now()}`;
-    const registerRes = await call(tenantId, "/ip-clients", {
+    const accountId = `test-lifecycle-${Date.now()}`;
+    const registerRes = await call(accountId, "/ip-clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ label: "Lifecycle device" }),
     });
     const { ipClientId } = (await registerRes.json()) as { ipClientId: string };
 
-    const disableRes = await call(tenantId, `/ip-clients/${ipClientId}/disable`, { method: "POST" });
+    const disableRes = await call(accountId, `/ip-clients/${ipClientId}/disable`, { method: "POST" });
     expect(disableRes.status).toBe(200);
     expect(((await disableRes.json()) as { status: string }).status).toBe("disabled");
 
-    const enableRes = await call(tenantId, `/ip-clients/${ipClientId}/enable`, { method: "POST" });
+    const enableRes = await call(accountId, `/ip-clients/${ipClientId}/enable`, { method: "POST" });
     expect(enableRes.status).toBe(200);
     expect(((await enableRes.json()) as { status: string }).status).toBe("enabled");
 
-    const rotateRes = await call(tenantId, `/ip-clients/${ipClientId}/rotate-credential`, { method: "POST" });
+    const rotateRes = await call(accountId, `/ip-clients/${ipClientId}/rotate-credential`, { method: "POST" });
     expect(rotateRes.status).toBe(200);
     const rotated = (await rotateRes.json()) as { reportingCredential: { username: string; password: string } };
     expect(rotated.reportingCredential.username).toBe(ipClientId);
     expect(rotated.reportingCredential.password.length).toBeGreaterThan(0);
 
-    const decommissionRes = await call(tenantId, `/ip-clients/${ipClientId}`, { method: "DELETE" });
+    const decommissionRes = await call(accountId, `/ip-clients/${ipClientId}`, { method: "DELETE" });
     expect(decommissionRes.status).toBe(200);
     expect(((await decommissionRes.json()) as { status: string }).status).toBe("decommissioned");
 
-    const getAfter = await call(tenantId, `/ip-clients/${ipClientId}`);
+    const getAfter = await call(accountId, `/ip-clients/${ipClientId}`);
     expect(((await getAfter.json()) as { status: string }).status).toBe("decommissioned");
   });
 
   it("lets an admin override another account's device limit, and rejects non-admins (FR-034)", async () => {
-    const targetTenant = `test-target-${Date.now()}`;
-    await call(targetTenant, "/ip-clients"); // triggers account auto-provisioning
+    const targetAccount = `test-target-${Date.now()}`;
+    await call(targetAccount, "/ip-clients"); // triggers account auto-provisioning
 
-    const forbidden = await call("some-caller", `/admin/accounts/${targetTenant}/device-limit`, {
+    const forbidden = await call("some-caller", `/admin/accounts/${targetAccount}/device-limit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ newLimit: 10 }),
@@ -129,7 +129,7 @@ describe("Account lifecycle (User Story 2)", () => {
     });
     expect(forbidden.status).toBe(403);
 
-    const allowed = await call("admin-caller", `/admin/accounts/${targetTenant}/device-limit`, {
+    const allowed = await call("admin-caller", `/admin/accounts/${targetAccount}/device-limit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ newLimit: 10 }),
@@ -138,27 +138,27 @@ describe("Account lifecycle (User Story 2)", () => {
     expect(allowed.status).toBe(200);
     expect(((await allowed.json()) as { deviceLimit: number }).deviceLimit).toBe(10);
 
-    const account = await accountService.getState(targetTenant);
+    const account = await accountService.getState(targetAccount);
     expect(account.deviceLimit).toBe(10);
   });
 
   it("reconfigures, disables, and detaches an Action", async () => {
-    const tenantId = `test-action-lifecycle-${Date.now()}`;
-    const credRes = await call(tenantId, "/provider-credentials", {
+    const accountId = `test-action-lifecycle-${Date.now()}`;
+    const credRes = await call(accountId, "/provider-credentials", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ provider: "hetzner", label: "cred", secret: "fake-token" }),
     });
     const { credentialId } = (await credRes.json()) as { credentialId: string };
 
-    const ipClientRes = await call(tenantId, "/ip-clients", {
+    const ipClientRes = await call(accountId, "/ip-clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ label: "device" }),
     });
     const { ipClientId } = (await ipClientRes.json()) as { ipClientId: string };
 
-    const attachRes = await call(tenantId, `/ip-clients/${ipClientId}/actions`, {
+    const attachRes = await call(accountId, `/ip-clients/${ipClientId}/actions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -169,7 +169,7 @@ describe("Account lifecycle (User Story 2)", () => {
     });
     const { actionId } = (await attachRes.json()) as { actionId: string };
 
-    const reconfigureRes = await call(tenantId, `/actions/${actionId}`, {
+    const reconfigureRes = await call(accountId, `/actions/${actionId}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -178,27 +178,27 @@ describe("Account lifecycle (User Story 2)", () => {
     });
     expect(reconfigureRes.status).toBe(200);
 
-    const disableRes = await call(tenantId, `/actions/${actionId}/disable`, { method: "POST" });
+    const disableRes = await call(accountId, `/actions/${actionId}/disable`, { method: "POST" });
     expect(disableRes.status).toBe(200);
 
-    const detachRes = await call(tenantId, `/actions/${actionId}`, { method: "DELETE" });
+    const detachRes = await call(accountId, `/actions/${actionId}`, { method: "DELETE" });
     expect(detachRes.status).toBe(200);
     expect(((await detachRes.json()) as { status: string }).status).toBe("detached");
   });
 
-  it("hard-deletes every event for a tenant on account closure (FR-032, research.md §12)", async () => {
-    const tenantId = `test-closure-${Date.now()}`;
-    const registerRes = await call(tenantId, "/ip-clients", {
+  it("hard-deletes every event for an account on account closure (FR-032, research.md §12)", async () => {
+    const accountId = `test-closure-${Date.now()}`;
+    const registerRes = await call(accountId, "/ip-clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ label: "About to be deleted" }),
     });
     expect(registerRes.status).toBe(201);
 
-    const closeRes = await call(tenantId, "/account", { method: "DELETE" });
+    const closeRes = await call(accountId, "/account", { method: "DELETE" });
     expect(closeRes.status).toBe(200);
 
-    const remaining = await eventStore.listAggregateIds({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE });
+    const remaining = await eventStore.listAggregateIds({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE });
     expect(remaining).toHaveLength(0);
   });
 });

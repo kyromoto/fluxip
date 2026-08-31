@@ -6,7 +6,7 @@
 
 ## Summary
 
-A visual and interaction-flow redesign of the existing `frontend/` SolidJS application: a modern, neutral component system (Kobalte primitives + Tailwind CSS + Solid UI components copied into the repo via its CLI), automatic OS-driven dark/light appearance via Tailwind's `media` dark-mode strategy (no toggle, no extra JS), three new multi-step guided wizards (account onboarding, Trigger Device creation, Action configuration) built on a small shared `WizardShell`, and a plain-language content/error layer applied to every existing screen. Registration credentials continue to be created by Logto's hosted sign-up page exactly as today; the "onboarding wizard" is a native, in-app sequence of steps that runs on a brand-new user's first authenticated return to the app (detected via a per-tenant local-storage flag, no backend change). No backend endpoint, data model, or business capability changes.
+A visual and interaction-flow redesign of the existing `frontend/` SolidJS application: a modern, neutral component system (Kobalte primitives + Tailwind CSS + Solid UI components copied into the repo via its CLI), automatic OS-driven dark/light appearance via Tailwind's `media` dark-mode strategy (no toggle, no extra JS), three new multi-step guided wizards (account onboarding, Trigger Device creation, Action configuration) built on a small shared `WizardShell`, and a plain-language content/error layer applied to every existing screen. Registration credentials continue to be created by Logto's hosted sign-up page exactly as today; the "onboarding wizard" is a native, in-app sequence of steps that runs on a brand-new user's first authenticated return to the app (detected via a per-account local-storage flag, no backend change). No backend endpoint, data model, or business capability changes.
 
 ## Technical Context
 
@@ -14,7 +14,7 @@ A visual and interaction-flow redesign of the existing `frontend/` SolidJS appli
 
 **Primary Dependencies**: SolidJS 1.9 + `@solidjs/router` 0.15 (existing, unchanged). New: `@kobalte/core` (accessible unstyled primitives), Tailwind CSS 3.x + `postcss` + `autoprefixer` (styling), Solid UI components copied into `src/components/ui/` via the `solidui-cli` (not installed as a library dependency), `class-variance-authority` + `tailwind-merge` + `clsx` (Solid UI's standard styling-utility peers). `@logto/browser` (existing, unchanged — still owns the hosted sign-up/sign-in redirect). New dev-only: `@solidjs/testing-library` (component tests), Playwright + `@axe-core/playwright` (responsive-viewport and WCAG 2.1 AA automated audits, since no browser-based test runner exists in the repo yet and SC-004/SC-008 need real layout/contrast rendering, not jsdom).
 
-**Storage**: N/A for this feature. Existing Postgres-backed backend and its event-sourced aggregates are untouched. The only new client-side state is a per-tenant `localStorage` flag marking the onboarding wizard as seen/completed (not sent to the backend).
+**Storage**: N/A for this feature. Existing Postgres-backed backend and its event-sourced aggregates are untouched. The only new client-side state is a per-account `localStorage` flag marking the onboarding wizard as seen/completed (not sent to the backend).
 
 **Testing**: Vitest (existing, both packages) for component/unit-level logic (wizard step-state hook, error-message mapping). New Playwright suite for: (a) automated WCAG 2.1 AA audits of every screen in both light and dark appearance (SC-008), (b) layout checks at the 360px floor and a large-desktop width with no horizontal scroll (SC-004/FR-016), (c) happy-path smoke runs of the three guided wizards. Timed usability criteria (SC-001, SC-002, SC-006) are manual/moderated usability-test criteria, not automated tests, and are out of scope for the automated suite.
 
@@ -78,7 +78,7 @@ frontend/
 │   ├── lib/
 │   │   ├── cn.ts                   # NEW — Solid UI's class-merge utility
 │   │   ├── errors.ts               # NEW — raw error/status → plain-language message mapping
-│   │   └── onboarding-state.ts     # NEW — per-tenant localStorage "has completed onboarding" helper
+│   │   └── onboarding-state.ts     # NEW — per-account localStorage "has completed onboarding" helper
 │   ├── pages/                      # EXISTING, restyled in place; IpClients/Actions launch the new wizards instead of inline forms
 │   │   ├── IpClients.tsx
 │   │   ├── Actions.tsx

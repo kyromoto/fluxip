@@ -40,7 +40,7 @@ export TOKEN="<logto-access-token>"
 6. Repeat step 4 with the same `myip` value.
    **Expected**: `GET /api/ip-clients/{id}/history` shows a new `ip_report_received` but no new `ip_changed`/execution (FR-006 no-op).
 
-## Scenario 2 — Tenant isolation across two users (validates User Story 2 / SC-003)
+## Scenario 2 — Account isolation across two users (validates User Story 2 / SC-003)
 
 1. Repeat Scenario 1's setup as a second, separate Logto-authenticated user (`TOKEN_B`).
 2. As `TOKEN_B`, call `GET /api/ip-clients/{first-user's-id}` and `GET /api/provider-credentials`.

@@ -1,6 +1,6 @@
 # Contract: Management API
 
-REST API used by the SolidJS frontend (and any future API consumer) to manage an account's resources. All endpoints below require a valid Logto-issued OIDC access token (`Authorization: Bearer <token>`), verified per research.md §7; the token's subject claim determines `accountId` for every request — no endpoint accepts a caller-supplied tenant identifier. Endpoints prefixed `/admin` additionally require an administrator role claim.
+REST API used by the SolidJS frontend (and any future API consumer) to manage an account's resources. All endpoints below require a valid Logto-issued OIDC access token (`Authorization: Bearer <token>`), verified per research.md §7; the token's subject claim determines `accountId` for every request — no endpoint accepts a caller-supplied account identifier. Endpoints prefixed `/admin` additionally require an administrator role claim.
 
 Response bodies below are illustrative field lists, not a full OpenAPI schema — exact shapes are finalized during implementation (tasks.md), referencing the fields defined in `data-model.md`.
 
@@ -58,5 +58,5 @@ Response bodies below are illustrative field lists, not a full OpenAPI schema �
 
 ## Cross-cutting
 
-- Every list/get endpoint scopes results to the caller's `accountId` at the query layer (research.md §8) — a request for another tenant's resource ID returns `404`, not `403`, to avoid confirming the resource's existence (supports FR-013/SC-003).
+- Every list/get endpoint scopes results to the caller's `accountId` at the query layer (research.md §8) — a request for another account's resource ID returns `404`, not `403`, to avoid confirming the resource's existence (supports FR-013/SC-003).
 - All mutating endpoints are idempotent-safe to retry from the client's perspective in the sense that they map 1:1 to a single new event append; none accept a client-supplied event ID (that's an internal concern), so accidental double-submission from the UI is a UX concern (e.g. disable the submit button), not a data-integrity one.

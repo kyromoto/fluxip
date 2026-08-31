@@ -20,7 +20,7 @@ export async function fanOutActionExecutions(
   eventStore: EventStore,
   actionExecutionQueue: Queue<ActionExecutionJobData>,
   params: {
-    tenantId: string;
+    accountId: string;
     ipClientId: string;
     causationEventId: string;
     triggeredBy: TriggeredBy;
@@ -28,14 +28,14 @@ export async function fanOutActionExecutions(
   },
 ): Promise<void> {
   const actionIds = await eventStore.listAggregateIds({
-    tenantId: params.tenantId,
+    accountId: params.accountId,
     aggregateType: ACTION_AGGREGATE_TYPE,
   });
 
   for (const actionId of actionIds) {
     const { state } = await loadAggregate(
       eventStore,
-      { tenantId: params.tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+      { accountId: params.accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
       initialActionState,
       actionReducer,
     );
@@ -47,7 +47,7 @@ export async function fanOutActionExecutions(
     await actionExecutionQueue.add(
       "execute",
       {
-        tenantId: params.tenantId,
+        accountId: params.accountId,
         executionId,
         actionId,
         ipClientId: params.ipClientId,
@@ -59,7 +59,7 @@ export async function fanOutActionExecutions(
     );
 
     logger.info("Execution enqueued for action {actionId}", {
-      tenantId: params.tenantId,
+      accountId: params.accountId,
       ipClientId: params.ipClientId,
       actionId,
       executionId,

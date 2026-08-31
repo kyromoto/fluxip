@@ -82,13 +82,13 @@ describe("Operation traceability (User Story 1)", () => {
   app.use("*", createAccessLogMiddleware());
   app.route("/", createTriggerRoutes({ config, eventStore, debounceQueue }));
   app.use("/actions/*", async (c, next) => {
-    c.set("auth", { tenantId: c.req.header("x-test-tenant") ?? "", roles: [] });
+    c.set("auth", { accountId: c.req.header("x-test-account") ?? "", roles: [] });
     await next();
   });
   app.route("/", createActionRunRoutes({ eventStore, actionExecutionQueue }));
 
-  function call(tenantId: string, path: string, init?: RequestInit): Promise<Response> {
-    return app.request(path, { ...init, headers: { ...init?.headers, "x-test-tenant": tenantId } });
+  function call(accountId: string, path: string, init?: RequestInit): Promise<Response> {
+    return app.request(path, { ...init, headers: { ...init?.headers, "x-test-account": accountId } });
   }
 
   function findLog(match: LogRecordMatch) {
@@ -132,13 +132,13 @@ describe("Operation traceability (User Story 1)", () => {
   });
 
   it("keeps one correlation id across an entire operation, and gives a manual re-run its own", async () => {
-    const tenantId = `test-trace-${Date.now()}`;
+    const accountId = `test-trace-${Date.now()}`;
     const ipClientId = `test-trace-ipc-${Date.now()}`;
     const { secret, hash } = generateCredential();
 
     const registeredData: IpClientRegisteredData = {
       ipClientId,
-      accountId: tenantId,
+      accountId: accountId,
       label: "Traceability test device",
       credentialHash: hash,
       registeredAt: new Date().toISOString(),
@@ -148,7 +148,7 @@ describe("Operation traceability (User Story 1)", () => {
       id: registeredEvent.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: IpClientEventName.Registered,
       type: registeredEvent.type,
@@ -160,7 +160,7 @@ describe("Operation traceability (User Story 1)", () => {
     const credentialId = `test-trace-cred-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
       credentialId,
-      accountId: tenantId,
+      accountId: accountId,
       provider: "hetzner",
       label: "Traceability test credential",
       encryptedSecret: encryptSecret("fake-hetzner-token", config.credentialEncryptionKey),
@@ -171,7 +171,7 @@ describe("Operation traceability (User Story 1)", () => {
       id: storedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: storedEvent.type,
@@ -183,7 +183,7 @@ describe("Operation traceability (User Story 1)", () => {
     async function attachAction(actionId: string, zone: string): Promise<void> {
       const attachedData: ActionAttachedData = {
         actionId,
-        accountId: tenantId,
+        accountId: accountId,
         ipClientId,
         type: UPDATE_DNS_RECORD_ACTION_TYPE,
         addressFamilies: ["ipv4"],
@@ -195,7 +195,7 @@ describe("Operation traceability (User Story 1)", () => {
         id: attachedEvent.id,
         aggregateType: ACTION_AGGREGATE_TYPE,
         aggregateId: actionId,
-        tenantId,
+        accountId,
         expectedSequenceNumber: 1,
         eventName: ActionEventName.Attached,
         type: attachedEvent.type,
@@ -212,7 +212,7 @@ describe("Operation traceability (User Story 1)", () => {
 
     // Fan out through the real HTTP trigger endpoint (exercises trigger.ts's own log call, FR-001).
     const auth = Buffer.from(`${ipClientId}:${secret}`).toString("base64");
-    const triggerRes = await call(tenantId, `/nic/update?hostname=test&myip=203.0.113.10`, {
+    const triggerRes = await call(accountId, `/nic/update?hostname=test&myip=203.0.113.10`, {
       headers: { authorization: `Basic ${auth}` },
     });
     expect(triggerRes.status).toBe(200);
@@ -263,7 +263,7 @@ describe("Operation traceability (User Story 1)", () => {
     }
 
     // Manual re-run (FR-023): its own causationEventId, never the original operation's.
-    const runRes = await call(tenantId, `/actions/${actionOkId}/run`, { method: "POST" });
+    const runRes = await call(accountId, `/actions/${actionOkId}/run`, { method: "POST" });
     expect(runRes.status).toBe(202);
     const { executionId: manualExecutionId } = (await runRes.json()) as { executionId: string };
 

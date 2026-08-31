@@ -17,8 +17,8 @@ export interface IpClientSummary {
   notificationPreference: IpClientState["notificationPreference"];
 }
 
-function projectionKey(tenantId: string): string {
-  return `proj:${tenantId}:ip_clients`;
+function projectionKey(accountId: string): string {
+  return `proj:${accountId}:ip_clients`;
 }
 
 function toSummary(state: IpClientState): IpClientSummary | null {
@@ -36,26 +36,26 @@ function toSummary(state: IpClientState): IpClientSummary | null {
 /** Disposable read model only — never consulted for business decisions (research.md §9). */
 export async function upsertIpClientProjection(
   redis: Redis,
-  tenantId: string,
+  accountId: string,
   state: IpClientState,
 ): Promise<void> {
   const summary = toSummary(state);
   if (!summary) return;
   if (summary.status === "decommissioned") {
-    await redis.hdel(projectionKey(tenantId), summary.ipClientId);
+    await redis.hdel(projectionKey(accountId), summary.ipClientId);
     return;
   }
-  await redis.hset(projectionKey(tenantId), summary.ipClientId, JSON.stringify(summary));
+  await redis.hset(projectionKey(accountId), summary.ipClientId, JSON.stringify(summary));
 }
 
 export async function rebuildIpClientsProjection(
   redis: Redis,
   eventStore: EventStore,
-  tenantId: string,
+  accountId: string,
 ): Promise<void> {
-  const key = projectionKey(tenantId);
+  const key = projectionKey(accountId);
   const ipClientIds = await eventStore.listAggregateIds({
-    tenantId,
+    accountId,
     aggregateType: IP_CLIENT_AGGREGATE_TYPE,
   });
 
@@ -63,7 +63,7 @@ export async function rebuildIpClientsProjection(
   for (const ipClientId of ipClientIds) {
     const { state } = await loadAggregate(
       eventStore,
-      { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+      { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
       initialIpClientState,
       ipClientReducer,
     );
@@ -77,12 +77,12 @@ export async function rebuildIpClientsProjection(
 export async function listIpClientsProjection(
   redis: Redis,
   eventStore: EventStore,
-  tenantId: string,
+  accountId: string,
 ): Promise<IpClientSummary[]> {
-  const key = projectionKey(tenantId);
+  const key = projectionKey(accountId);
   const exists = await redis.exists(key);
   if (!exists) {
-    await rebuildIpClientsProjection(redis, eventStore, tenantId);
+    await rebuildIpClientsProjection(redis, eventStore, accountId);
   }
   const raw = await redis.hgetall(key);
   return Object.values(raw).map((v) => JSON.parse(v) as IpClientSummary);

@@ -54,7 +54,7 @@ A user registers an account, adds a Trigger Device representing their home route
 
 A user with several locations (e.g. home and a vacation property) adds a separate Trigger Device for each location, each with its own independent set of Actions. The user can add, edit, disable, or remove any of their Trigger Devices and Actions at any time. No other user of the system can ever see, use, or affect this user's devices, actions, or stored credentials, regardless of how many users or application instances are active.
 
-**Why this priority**: Multi-device management and strict tenant isolation are what make FluxIP usable by more than one household and safe to run as a shared, multi-instance service. This is required before the product can be trusted with real credentials at any scale.
+**Why this priority**: Multi-device management and strict account isolation are what make FluxIP usable by more than one household and safe to run as a shared, multi-instance service. This is required before the product can be trusted with real credentials at any scale.
 
 **Independent Test**: Can be fully tested by creating two separate user accounts, each configuring multiple Trigger Devices and Actions, then verifying via each user's own view that neither can see, list, modify, or trigger the other's devices, actions, or credentials.
 

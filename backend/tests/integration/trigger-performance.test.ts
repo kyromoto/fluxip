@@ -41,7 +41,7 @@ describe("Trigger endpoint performance (plan.md Performance Goals)", () => {
   let server: ServerType;
   let baseUrl: string;
 
-  const tenantId = `test-perf-${Date.now()}`;
+  const accountId = `test-perf-${Date.now()}`;
   const ipClients: { ipClientId: string; secret: string }[] = [];
 
   beforeAll(async () => {
@@ -52,7 +52,7 @@ describe("Trigger endpoint performance (plan.md Performance Goals)", () => {
       const generated = generateCredential();
       const registeredData: IpClientRegisteredData = {
         ipClientId,
-        accountId: tenantId,
+        accountId: accountId,
         label: `Perf test device ${i}`,
         credentialHash: generated.hash,
         registeredAt: new Date().toISOString(),
@@ -62,7 +62,7 @@ describe("Trigger endpoint performance (plan.md Performance Goals)", () => {
         id: built.id,
         aggregateType: IP_CLIENT_AGGREGATE_TYPE,
         aggregateId: ipClientId,
-        tenantId,
+        accountId,
         expectedSequenceNumber: 1,
         eventName: IpClientEventName.Registered,
         type: built.type,

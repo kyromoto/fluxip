@@ -49,14 +49,14 @@ export function createTriggerRoutes(deps: TriggerRouteDeps): Hono {
       }
 
       const ipClientId = credentials.username;
-      const tenantId = await deps.eventStore.resolveTenantId(IP_CLIENT_AGGREGATE_TYPE, ipClientId);
-      if (!tenantId) {
+      const accountId = await deps.eventStore.resolveAccountId(IP_CLIENT_AGGREGATE_TYPE, ipClientId);
+      if (!accountId) {
         return c.text("badauth", 401);
       }
 
       const { state, version } = await loadAggregate(
         deps.eventStore,
-        { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+        { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
         initialIpClientState,
         ipClientReducer,
       );
@@ -90,7 +90,7 @@ export function createTriggerRoutes(deps: TriggerRouteDeps): Hono {
         id: built.id,
         aggregateType: IP_CLIENT_AGGREGATE_TYPE,
         aggregateId: ipClientId,
-        tenantId,
+        accountId,
         expectedSequenceNumber: version + 1,
         eventName: IpClientEventName.IpReportReceived,
         type: built.type,
@@ -99,9 +99,9 @@ export function createTriggerRoutes(deps: TriggerRouteDeps): Hono {
         data: built.data,
       });
 
-      logger.info("Trigger report received for {ipClientId}", { tenantId, ipClientId, reportedIPv4: myip, reportedIPv6: myip6 });
+      logger.info("Trigger report received for {ipClientId}", { accountId, ipClientId, reportedIPv4: myip, reportedIPv6: myip6 });
 
-      await scheduleDebounce(deps.debounceQueue, deps.config, ipClientId, tenantId);
+      await scheduleDebounce(deps.debounceQueue, deps.config, ipClientId, accountId);
 
       // "good" is returned once the report is accepted for (async) processing —
       // whether it turns out to be an actual change is decided after debounce.

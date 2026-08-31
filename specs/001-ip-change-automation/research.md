@@ -10,7 +10,7 @@ All items below were either fully specified by the user's technical-stack brief 
 
 ## 2. Postgres as the event store
 
-- **Decision**: A single append-only `events` table (or one table per aggregate type — to be settled in data-model.md) storing the full CloudEvents envelope plus `aggregate_id`, `aggregate_type`, `sequence_number`, and `tenant_id` columns extracted for indexing/filtering. Writers use optimistic concurrency: insert is conditioned on `sequence_number = current_max + 1` for that aggregate, retried on conflict.
+- **Decision**: A single append-only `events` table (or one table per aggregate type — to be settled in data-model.md) storing the full CloudEvents envelope plus `aggregate_id`, `aggregate_type`, `sequence_number`, and `account_id` columns extracted for indexing/filtering. Writers use optimistic concurrency: insert is conditioned on `sequence_number = current_max + 1` for that aggregate, retried on conflict.
 - **Rationale**: Matches the "Postgres as event store, immutable events, current state derived by projection" guardrail. Optimistic concurrency via a unique `(aggregate_id, sequence_number)` constraint is the standard, dependency-free way to prevent lost updates without distributed locks.
 - **Alternatives considered**: A dedicated event-store product (EventStoreDB) — rejected, contradicts the explicit "Postgres as event store, swappable only behind a port" guardrail and adds an extra service for no v1 benefit.
 
@@ -40,15 +40,15 @@ All items below were either fully specified by the user's technical-stack brief 
 
 ## 7. Authentication (Logto / OIDC)
 
-- **Decision**: Hono middleware verifies incoming OIDC access tokens against Logto's JWKS endpoint using `jose`, with JWKS response caching. The token's subject claim is taken as the `tenant_id` used to tag every event the request causes. Logto owns registration/login/password reset entirely; FluxIP never sees or stores a password.
-- **Rationale**: Matches the explicit requirement that Logto is the sole identity provider and that FluxIP's own isolation logic (tenant_id on every event) is independent of how the user authenticated.
+- **Decision**: Hono middleware verifies incoming OIDC access tokens against Logto's JWKS endpoint using `jose`, with JWKS response caching. The token's subject claim is taken as the `account_id` used to tag every event the request causes. Logto owns registration/login/password reset entirely; FluxIP never sees or stores a password.
+- **Rationale**: Matches the explicit requirement that Logto is the sole identity provider and that FluxIP's own isolation logic (account_id on every event) is independent of how the user authenticated.
 - **Alternatives considered**: Session cookies issued by FluxIP itself — rejected, contradicts "FluxIP verwaltet keine Passwörter selbst."
 
-## 8. Tenant isolation enforcement
+## 8. Account isolation enforcement
 
-- **Decision**: Every read/write repository method operating on the event store or a projection requires a `tenant_id` parameter and enforces it in the SQL/Redis-key itself (e.g., `WHERE tenant_id = $1 AND aggregate_id = $2`, or Redis keys namespaced `proj:{tenant_id}:...`), not just filtered after the fact in application code. Business decisions (e.g., "should the DNS Action run") are made by replaying events queried from Postgres for that `tenant_id`+aggregate, never from the Redis projection, per the explicit guardrail.
-- **Rationale**: Satisfies FR-012/FR-013 and SC-003 at the data-access layer, where a missed `tenant_id` filter is structurally impossible to forget (it's a required parameter of the only functions allowed to touch storage), rather than relying on every call site remembering to filter.
-- **Alternatives considered**: Postgres native Row-Level Security (RLS) policies — a reasonable alternative/defense-in-depth layer; noted as a candidate hardening step for a later iteration rather than a v1 requirement, since the repository-level enforcement above already satisfies the functional requirement without the added operational complexity of managing RLS policies alongside application-level tenancy.
+- **Decision**: Every read/write repository method operating on the event store or a projection requires an `account_id` parameter and enforces it in the SQL/Redis-key itself (e.g., `WHERE account_id = $1 AND aggregate_id = $2`, or Redis keys namespaced `proj:{account_id}:...`), not just filtered after the fact in application code. Business decisions (e.g., "should the DNS Action run") are made by replaying events queried from Postgres for that `account_id`+aggregate, never from the Redis projection, per the explicit guardrail.
+- **Rationale**: Satisfies FR-012/FR-013 and SC-003 at the data-access layer, where a missed `account_id` filter is structurally impossible to forget (it's a required parameter of the only functions allowed to touch storage), rather than relying on every call site remembering to filter.
+- **Alternatives considered**: Postgres native Row-Level Security (RLS) policies — a reasonable alternative/defense-in-depth layer; noted as a candidate hardening step for a later iteration rather than a v1 requirement, since the repository-level enforcement above already satisfies the functional requirement without the added operational complexity of managing RLS policies alongside application-level account scoping.
 
 ## 9. Projections (Redis read models)
 
@@ -70,9 +70,9 @@ All items below were either fully specified by the user's technical-stack brief 
 
 ## 12. Account deletion vs. immutable event log (tension, resolved)
 
-- **Decision**: Account closure (FR-032) performs an explicit, synchronous **hard delete** of every event row for that `tenant_id` across all aggregates, plus removal of any in-flight BullMQ jobs referencing that tenant and any Redis projection keys namespaced to it. This is a deliberate, narrow exception to "events are never deleted."
+- **Decision**: Account closure (FR-032) performs an explicit, synchronous **hard delete** of every event row for that `account_id` across all aggregates, plus removal of any in-flight BullMQ jobs referencing that account and any Redis projection keys namespaced to it. This is a deliberate, narrow exception to "events are never deleted."
 - **Rationale**: FR-032 requires *immediate and permanent* erasure with *no recovery period*. That is incompatible with pure event-log immutability (a tombstone/redaction event would still leave the original PII-bearing events in place until some later purge job runs, violating "immediate"). Treating it as one explicit, audited exception is more honest than inventing a soft-delete mechanism that doesn't actually meet the requirement.
-- **Alternatives considered**: (a) Tombstone event + async purge job — rejected, doesn't satisfy "immediate"; (b) crypto-shredding (per-tenant encryption key, delete the key) — plausible future hardening, rejected for v1 as disproportionate given the "pragmatic, not dogmatic" architecture guardrail and no stated compliance driver requiring it yet.
+- **Alternatives considered**: (a) Tombstone event + async purge job — rejected, doesn't satisfy "immediate"; (b) crypto-shredding (per-account encryption key, delete the key) — plausible future hardening, rejected for v1 as disproportionate given the "pragmatic, not dogmatic" architecture guardrail and no stated compliance driver requiring it yet.
 
 ## 13. Notification delivery (email)
 
@@ -88,7 +88,7 @@ All items below were either fully specified by the user's technical-stack brief 
 
 ## 15. Account password change (resolves the FR-002 / Logto-delegation tension)
 
-- **Decision**: The user changes their password from within FluxIP's own account settings UI (not a redirect/embed of Logto's hosted UI), symmetric with in-app account deletion. The FluxIP backend proxies the request to **Logto's Management API** using a dedicated machine-to-machine application's client-credentials token (`BACKEND_LOGTO_MANAGEMENT_CLIENT_ID`/`BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET`/`BACKEND_LOGTO_MANAGEMENT_API_BASE_URL`), addressing the same Logto user ID already used as `tenant_id` elsewhere. The new password value passes through the FluxIP backend only transiently, for that single upstream call — it is never logged, persisted, or included in any event payload.
+- **Decision**: The user changes their password from within FluxIP's own account settings UI (not a redirect/embed of Logto's hosted UI), symmetric with in-app account deletion. The FluxIP backend proxies the request to **Logto's Management API** using a dedicated machine-to-machine application's client-credentials token (`BACKEND_LOGTO_MANAGEMENT_CLIENT_ID`/`BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET`/`BACKEND_LOGTO_MANAGEMENT_API_BASE_URL`), addressing the same Logto user ID already used as `account_id` elsewhere. The new password value passes through the FluxIP backend only transiently, for that single upstream call — it is never logged, persisted, or included in any event payload.
 - **Rationale**: Satisfies the product requirement that password change feels native inside FluxIP (FR-002) while keeping Logto as the sole system of record for credentials (research.md §7) — FluxIP still never *stores* a password; it only *relays* one, once, on the authenticated user's own behalf.
 - **Alternatives considered**: Redirecting/embedding Logto's own hosted account-settings page — rejected per explicit product preference for a native in-app experience; FluxIP performing its own password hashing/storage — rejected, directly contradicts the "Logto owns auth" guardrail from research.md §7.
 

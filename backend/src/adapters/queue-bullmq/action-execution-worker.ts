@@ -42,7 +42,7 @@ import { getRedisConnection, QUEUE_NAMES } from "./queue.js";
 const logger = getAppLogger(["action-execution"]);
 
 export interface ActionExecutionJobData {
-  tenantId: string;
+  accountId: string;
   executionId: string;
   actionId: string;
   ipClientId: string;
@@ -60,11 +60,11 @@ export interface ActionExecutionWorkerDeps {
   notificationChannels?: Record<string, NotificationChannel>;
 }
 
-async function nextSequence(deps: ActionExecutionWorkerDeps, tenantId: string, executionId: string): Promise<number> {
+async function nextSequence(deps: ActionExecutionWorkerDeps, accountId: string, executionId: string): Promise<number> {
   // Goes through loadAggregate (not a raw readStream) so this replay is metrics-instrumented like every other one (research.md §10).
   const { version } = await loadAggregate(
     deps.eventStore,
-    { tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
+    { accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
     initialActionExecutionState,
     actionExecutionReducer,
   );
@@ -73,7 +73,7 @@ async function nextSequence(deps: ActionExecutionWorkerDeps, tenantId: string, e
 
 async function appendExecutionEvent<TData>(
   deps: ActionExecutionWorkerDeps,
-  tenantId: string,
+  accountId: string,
   executionId: string,
   eventName: string,
   data: TData,
@@ -83,8 +83,8 @@ async function appendExecutionEvent<TData>(
     id: built.id,
     aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE,
     aggregateId: executionId,
-    tenantId,
-    expectedSequenceNumber: await nextSequence(deps, tenantId, executionId),
+    accountId,
+    expectedSequenceNumber: await nextSequence(deps, accountId, executionId),
     eventName,
     type: built.type,
     source: built.source,
@@ -95,16 +95,16 @@ async function appendExecutionEvent<TData>(
 
 async function refreshExecutionProjection(
   deps: ActionExecutionWorkerDeps,
-  tenantId: string,
+  accountId: string,
   executionId: string,
 ): Promise<void> {
   const { state } = await loadAggregate(
     deps.eventStore,
-    { tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
+    { accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
     initialActionExecutionState,
     actionExecutionReducer,
   );
-  await upsertExecutionProjection(deps.redis, tenantId, state);
+  await upsertExecutionProjection(deps.redis, accountId, state);
 }
 
 /**
@@ -115,7 +115,7 @@ async function refreshExecutionProjection(
  */
 async function maybeSendNotification(
   deps: ActionExecutionWorkerDeps,
-  tenantId: string,
+  accountId: string,
   ipClientId: string,
   executionId: string,
   outcome: "succeeded" | "failed",
@@ -123,7 +123,7 @@ async function maybeSendNotification(
   try {
     const { state: ipClientState } = await loadAggregate(
       deps.eventStore,
-      { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+      { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
       initialIpClientState,
       ipClientReducer,
     );
@@ -133,7 +133,7 @@ async function maybeSendNotification(
 
     const { state: channelState } = await loadAggregate(
       deps.eventStore,
-      { tenantId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: tenantId },
+      { accountId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: accountId },
       initialNotificationChannelState,
       notificationChannelReducer,
     );
@@ -153,7 +153,7 @@ async function maybeSendNotification(
       outcomeNotified: outcome,
       sentAt: new Date().toISOString(),
     };
-    await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.NotificationSent, data);
+    await appendExecutionEvent(deps, accountId, executionId, ActionExecutionEventName.NotificationSent, data);
   } catch (err) {
     // A notification failure must never affect execution status or retry behavior.
     logger.error("Notification send failed for execution {executionId}: {error}", {
@@ -165,13 +165,13 @@ async function maybeSendNotification(
 
 async function resolveDnsExecutorConfig(
   deps: ActionExecutionWorkerDeps,
-  tenantId: string,
+  accountId: string,
   config: UpdateDnsRecordConfig,
 ): Promise<{ apiToken: string; zoneName: string; recordName: string; sourceLabel: string }> {
   const { state: credentialState } = await loadAggregate(
     deps.eventStore,
     {
-      tenantId,
+      accountId,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: config.providerCredentialId,
     },
@@ -194,12 +194,12 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
     QUEUE_NAMES.actionExecution,
     async (job: Job<ActionExecutionJobData>) =>
       withOperation(job.data.causationEventId, async () => {
-        const { tenantId, executionId, actionId, ipClientId, causationEventId, triggeredBy, ipValues } = job.data;
+        const { accountId, executionId, actionId, ipClientId, causationEventId, triggeredBy, ipValues } = job.data;
         const attempt = job.attemptsMade + 1;
 
         const startedData: ActionExecutionStartedData = {
           executionId,
-          accountId: tenantId,
+          accountId: accountId,
           actionId,
           ipClientId,
           triggeredBy,
@@ -208,12 +208,12 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
           attempt,
           startedAt: new Date().toISOString(),
         };
-        await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Started, startedData);
-        logger.info("Execution started for action {actionId}", { tenantId, actionId, ipClientId, executionId, attempt });
+        await appendExecutionEvent(deps, accountId, executionId, ActionExecutionEventName.Started, startedData);
+        logger.info("Execution started for action {actionId}", { accountId, actionId, ipClientId, executionId, attempt });
 
         const { state: actionState } = await loadAggregate(
           deps.eventStore,
-          { tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+          { accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
           initialActionState,
           actionReducer,
         );
@@ -232,16 +232,16 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
             retriesExhausted: true,
             failedAt: new Date().toISOString(),
           };
-          await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Failed, failedData);
+          await appendExecutionEvent(deps, accountId, executionId, ActionExecutionEventName.Failed, failedData);
           logger.error("Execution failed for action {actionId}: {error}", {
-            tenantId,
+            accountId,
             actionId,
             ipClientId,
             executionId,
             error: failedData.error,
           });
-          await refreshExecutionProjection(deps, tenantId, executionId);
-          await maybeSendNotification(deps, tenantId, ipClientId, executionId, "failed");
+          await refreshExecutionProjection(deps, accountId, executionId);
+          await maybeSendNotification(deps, accountId, ipClientId, executionId, "failed");
           return;
         }
 
@@ -258,7 +258,7 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
 
           const resolvedConfig =
             actionState.type === UPDATE_DNS_RECORD_ACTION_TYPE
-              ? await resolveDnsExecutorConfig(deps, tenantId, actionState.config as UpdateDnsRecordConfig)
+              ? await resolveDnsExecutorConfig(deps, accountId, actionState.config as UpdateDnsRecordConfig)
               : undefined;
 
           const result = await executor.execute(resolvedConfig, relevantIpValues);
@@ -267,10 +267,10 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
             completedAt: new Date().toISOString(),
             providerResponseSummary: result.summary,
           };
-          await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Succeeded, succeededData);
-          logger.info("Execution succeeded for action {actionId}", { tenantId, actionId, ipClientId, executionId });
-          await refreshExecutionProjection(deps, tenantId, executionId);
-          await maybeSendNotification(deps, tenantId, ipClientId, executionId, "succeeded");
+          await appendExecutionEvent(deps, accountId, executionId, ActionExecutionEventName.Succeeded, succeededData);
+          logger.info("Execution succeeded for action {actionId}", { accountId, actionId, ipClientId, executionId });
+          await refreshExecutionProjection(deps, accountId, executionId);
+          await maybeSendNotification(deps, accountId, ipClientId, executionId, "succeeded");
         } catch (err) {
           const maxAttempts = job.opts.attempts ?? 1;
           const isFinalAttempt = attempt >= maxAttempts;
@@ -280,17 +280,17 @@ export function createActionExecutionWorker(deps: ActionExecutionWorkerDeps): Wo
             retriesExhausted: isFinalAttempt,
             failedAt: new Date().toISOString(),
           };
-          await appendExecutionEvent(deps, tenantId, executionId, ActionExecutionEventName.Failed, failedData);
+          await appendExecutionEvent(deps, accountId, executionId, ActionExecutionEventName.Failed, failedData);
           logger.error("Execution failed for action {actionId}: {error}", {
-            tenantId,
+            accountId,
             actionId,
             ipClientId,
             executionId,
             error: failedData.error,
           });
-          await refreshExecutionProjection(deps, tenantId, executionId);
+          await refreshExecutionProjection(deps, accountId, executionId);
           if (isFinalAttempt) {
-            await maybeSendNotification(deps, tenantId, ipClientId, executionId, "failed");
+            await maybeSendNotification(deps, accountId, ipClientId, executionId, "failed");
           }
           throw err;
         }

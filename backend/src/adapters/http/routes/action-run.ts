@@ -34,11 +34,11 @@ export function createActionRunRoutes(deps: ActionRunRouteDeps): Hono {
 
     const { state: actionState } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+      { accountId: auth.accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
       initialActionState,
       actionReducer,
     );
-    if (!actionState.actionId || actionState.accountId !== auth.tenantId) {
+    if (!actionState.actionId || actionState.accountId !== auth.accountId) {
       return c.json({ error: "not found" }, 404);
     }
     if (actionState.status !== "enabled" || !actionState.ipClientId) {
@@ -47,7 +47,7 @@ export function createActionRunRoutes(deps: ActionRunRouteDeps): Hono {
 
     const { state: ipClientState } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: actionState.ipClientId },
+      { accountId: auth.accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: actionState.ipClientId },
       initialIpClientState,
       ipClientReducer,
     );
@@ -58,7 +58,7 @@ export function createActionRunRoutes(deps: ActionRunRouteDeps): Hono {
     const executionId = ulid();
     const causationEventId = ulid();
     const jobData: ActionExecutionJobData = {
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       executionId,
       actionId,
       ipClientId: actionState.ipClientId,
@@ -73,7 +73,7 @@ export function createActionRunRoutes(deps: ActionRunRouteDeps): Hono {
       // BullMQ custom job IDs cannot contain ":" (see execution-fanout-worker.ts).
       await deps.actionExecutionQueue.add("execute", jobData, { jobId: `exec-manual-${executionId}` });
       logger.info("Manual execution requested for action {actionId}", {
-        tenantId: auth.tenantId,
+        accountId: auth.accountId,
         actionId,
         ipClientId: actionState.ipClientId,
         executionId,

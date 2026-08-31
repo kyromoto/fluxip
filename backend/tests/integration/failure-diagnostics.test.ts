@@ -76,7 +76,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
   });
 
   async function setupIpClientWithAction(
-    tenantId: string,
+    accountId: string,
     providerCredentialId: string,
     addressFamilies: AddressFamily[],
   ): Promise<{ ipClientId: string; actionId: string }> {
@@ -84,7 +84,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
     const { hash } = generateCredential();
     const registeredData: IpClientRegisteredData = {
       ipClientId,
-      accountId: tenantId,
+      accountId: accountId,
       label: "Diagnostics device",
       credentialHash: hash,
       registeredAt: new Date().toISOString(),
@@ -94,7 +94,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       id: registeredEvent.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: IpClientEventName.Registered,
       type: registeredEvent.type,
@@ -106,7 +106,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
     const actionId = `test-diag-action-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const attachedData: ActionAttachedData = {
       actionId,
-      accountId: tenantId,
+      accountId: accountId,
       ipClientId,
       type: UPDATE_DNS_RECORD_ACTION_TYPE,
       addressFamilies,
@@ -118,7 +118,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       id: attachedEvent.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ActionEventName.Attached,
       type: attachedEvent.type,
@@ -130,15 +130,15 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
     return { ipClientId, actionId };
   }
 
-  async function reportIpv4(tenantId: string, ipClientId: string, ip: string): Promise<void> {
+  async function reportIpv4(accountId: string, ipClientId: string, ip: string): Promise<void> {
     const reportData: IpClientIpReportReceivedData = { reportedIPv4: ip, receivedAt: new Date().toISOString() };
     const reportEvent = buildDomainEvent(config, IP_CLIENT_AGGREGATE_TYPE, IpClientEventName.IpReportReceived, reportData);
-    const events = await eventStore.readStream({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
+    const events = await eventStore.readStream({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
     await eventStore.append({
       id: reportEvent.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: events.length + 1,
       eventName: IpClientEventName.IpReportReceived,
       type: reportEvent.type,
@@ -146,17 +146,17 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       time: reportEvent.time,
       data: reportEvent.data,
     });
-    await scheduleDebounce(debounceQueue, config, ipClientId, tenantId);
+    await scheduleDebounce(debounceQueue, config, ipClientId, accountId);
   }
 
-  async function findFailureError(tenantId: string, actionId: string): Promise<string | null> {
+  async function findFailureError(accountId: string, actionId: string): Promise<string | null> {
     let found: string | null = null;
     await waitFor(async () => {
-      const ids = await eventStore.listAggregateIds({ tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE });
+      const ids = await eventStore.listAggregateIds({ accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE });
       for (const id of ids) {
         const { state } = await loadAggregate(
           eventStore,
-          { tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: id },
+          { accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: id },
           initialActionExecutionState,
           actionExecutionReducer,
         );
@@ -171,11 +171,11 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
   }
 
   it("surfaces a revoked-provider-credential failure distinctly", async () => {
-    const tenantId = `test-diag-revoked-${Date.now()}`;
+    const accountId = `test-diag-revoked-${Date.now()}`;
     const credentialId = `test-diag-cred-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
       credentialId,
-      accountId: tenantId,
+      accountId: accountId,
       provider: "hetzner",
       label: "Revoked cred",
       encryptedSecret: encryptSecret("fake-token", config.credentialEncryptionKey),
@@ -186,7 +186,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       id: storedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: storedEvent.type,
@@ -200,7 +200,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       id: revokedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 2,
       eventName: ProviderCredentialEventName.Revoked,
       type: revokedEvent.type,
@@ -209,20 +209,20 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       data: revokedEvent.data,
     });
 
-    const { ipClientId, actionId } = await setupIpClientWithAction(tenantId, credentialId, ["ipv4"]);
-    await reportIpv4(tenantId, ipClientId, "203.0.113.60");
+    const { ipClientId, actionId } = await setupIpClientWithAction(accountId, credentialId, ["ipv4"]);
+    await reportIpv4(accountId, ipClientId, "203.0.113.60");
 
-    const error = await findFailureError(tenantId, actionId);
+    const error = await findFailureError(accountId, actionId);
     expect(error).toContain("Provider Credential");
     expect(error).toContain("revoked");
   }, 10000);
 
   it("surfaces a missing-required-address-family failure distinctly", async () => {
-    const tenantId = `test-diag-family-${Date.now()}`;
+    const accountId = `test-diag-family-${Date.now()}`;
     const credentialId = `test-diag-cred2-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
       credentialId,
-      accountId: tenantId,
+      accountId: accountId,
       provider: "hetzner",
       label: "Active cred",
       encryptedSecret: encryptSecret("fake-token", config.credentialEncryptionKey),
@@ -233,7 +233,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       id: storedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: storedEvent.type,
@@ -243,19 +243,19 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
     });
 
     // Action requires both ipv4 and ipv6, but the device will only ever report ipv4 (FR-026/FR-027).
-    const { ipClientId, actionId } = await setupIpClientWithAction(tenantId, credentialId, ["ipv4", "ipv6"]);
-    await reportIpv4(tenantId, ipClientId, "203.0.113.61");
+    const { ipClientId, actionId } = await setupIpClientWithAction(accountId, credentialId, ["ipv4", "ipv6"]);
+    await reportIpv4(accountId, ipClientId, "203.0.113.61");
 
-    const error = await findFailureError(tenantId, actionId);
+    const error = await findFailureError(accountId, actionId);
     expect(error).toContain("address family");
   }, 10000);
 
   it("surfaces an upstream-provider-API rejection distinctly", async () => {
-    const tenantId = `test-diag-upstream-${Date.now()}`;
+    const accountId = `test-diag-upstream-${Date.now()}`;
     const credentialId = `test-diag-cred3-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
       credentialId,
-      accountId: tenantId,
+      accountId: accountId,
       provider: "hetzner",
       label: "Active cred",
       encryptedSecret: encryptSecret("fake-token", config.credentialEncryptionKey),
@@ -266,7 +266,7 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       id: storedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: storedEvent.type,
@@ -275,10 +275,10 @@ describe("Distinct failure-cause diagnostics (SC-006)", () => {
       data: storedEvent.data,
     });
 
-    const { ipClientId, actionId } = await setupIpClientWithAction(tenantId, credentialId, ["ipv4"]);
-    await reportIpv4(tenantId, ipClientId, "203.0.113.62");
+    const { ipClientId, actionId } = await setupIpClientWithAction(accountId, credentialId, ["ipv4"]);
+    await reportIpv4(accountId, ipClientId, "203.0.113.62");
 
-    const error = await findFailureError(tenantId, actionId);
+    const error = await findFailureError(accountId, actionId);
     expect(error).toContain("Hetzner DNS API rejected the update (403)");
     expect(error).toContain("zone1");
   }, 10000);

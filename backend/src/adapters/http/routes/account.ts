@@ -16,7 +16,7 @@ export function createAccountRoutes(deps: AccountRouteDeps): Hono {
 
   router.get("/", async (c) => {
     const auth = getAuth(c);
-    const state = await deps.accountService.getState(auth.tenantId);
+    const state = await deps.accountService.getState(auth.accountId);
     return c.json({ accountId: state.accountId, deviceLimit: state.deviceLimit, status: state.status });
   });
 
@@ -28,7 +28,7 @@ export function createAccountRoutes(deps: AccountRouteDeps): Hono {
     }
 
     try {
-      await setUserPassword(deps.config, auth.tenantId, body.newPassword);
+      await setUserPassword(deps.config, auth.accountId, body.newPassword);
     } catch {
       return c.json({ error: "failed to update password" }, 502);
     }
@@ -37,7 +37,7 @@ export function createAccountRoutes(deps: AccountRouteDeps): Hono {
 
   router.delete("/", async (c) => {
     const auth = getAuth(c);
-    await deps.accountClosureService.closeAccount(auth.tenantId);
+    await deps.accountClosureService.closeAccount(auth.accountId);
     return c.json({ ok: true });
   });
 

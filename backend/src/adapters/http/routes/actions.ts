@@ -32,29 +32,29 @@ export interface ActionsRouteDeps {
   redis: Redis;
 }
 
-async function refreshProjection(deps: ActionsRouteDeps, tenantId: string, actionId: string): Promise<void> {
+async function refreshProjection(deps: ActionsRouteDeps, accountId: string, actionId: string): Promise<void> {
   const { state } = await loadAggregate(
     deps.eventStore,
-    { tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+    { accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
     initialActionState,
     actionReducer,
   );
-  await upsertActionProjection(deps.redis, tenantId, state);
+  await upsertActionProjection(deps.redis, accountId, state);
 }
 
-/** Loads the Action and returns its state+version only if owned by this tenant, else null (404 — FR-013/SC-003). */
+/** Loads the Action and returns its state+version only if owned by this account, else null (404 — FR-013/SC-003). */
 async function loadOwnedAction(
   deps: ActionsRouteDeps,
-  tenantId: string,
+  accountId: string,
   actionId: string,
 ): Promise<{ state: ActionState; version: number } | null> {
   const { state, version } = await loadAggregate(
     deps.eventStore,
-    { tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+    { accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
     initialActionState,
     actionReducer,
   );
-  if (!state.actionId || state.accountId !== tenantId) return null;
+  if (!state.actionId || state.accountId !== accountId) return null;
   return { state, version };
 }
 
@@ -81,7 +81,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
     const { state: credentialState } = await loadAggregate(
       deps.eventStore,
       {
-        tenantId: auth.tenantId,
+        accountId: auth.accountId,
         aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
         aggregateId: body.config.providerCredentialId,
       },
@@ -90,7 +90,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
     );
     if (
       !credentialState.credentialId ||
-      credentialState.accountId !== auth.tenantId ||
+      credentialState.accountId !== auth.accountId ||
       credentialState.status !== "active"
     ) {
       return c.json({ error: "invalid providerCredentialId" }, 400);
@@ -99,7 +99,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
     const actionId = ulid();
     const data: ActionAttachedData = {
       actionId,
-      accountId: auth.tenantId,
+      accountId: auth.accountId,
       ipClientId,
       type: body.type,
       addressFamilies: body.addressFamilies,
@@ -112,7 +112,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       id: built.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: 1,
       eventName: ActionEventName.Attached,
       type: built.type,
@@ -121,7 +121,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       data: built.data,
     });
 
-    await refreshProjection(deps, auth.tenantId, actionId);
+    await refreshProjection(deps, auth.accountId, actionId);
 
     return c.json({ actionId }, 201);
   });
@@ -129,14 +129,14 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
   router.get("/ip-clients/:ipClientId/actions", async (c) => {
     const auth = getAuth(c);
     const ipClientId = c.req.param("ipClientId");
-    const items = await listActionsProjection(deps.redis, deps.eventStore, auth.tenantId, ipClientId);
+    const items = await listActionsProjection(deps.redis, deps.eventStore, auth.accountId, ipClientId);
     return c.json({ items });
   });
 
   router.put("/actions/:id", async (c) => {
     const auth = getAuth(c);
     const actionId = c.req.param("id");
-    const owned = await loadOwnedAction(deps, auth.tenantId, actionId);
+    const owned = await loadOwnedAction(deps, auth.accountId, actionId);
     if (!owned) return c.json({ error: "not found" }, 404);
 
     const body = await c.req
@@ -150,7 +150,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       const { state: credentialState } = await loadAggregate(
         deps.eventStore,
         {
-          tenantId: auth.tenantId,
+          accountId: auth.accountId,
           aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
           aggregateId: body.config.providerCredentialId,
         },
@@ -159,7 +159,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       );
       if (
         !credentialState.credentialId ||
-        credentialState.accountId !== auth.tenantId ||
+        credentialState.accountId !== auth.accountId ||
         credentialState.status !== "active"
       ) {
         return c.json({ error: "invalid providerCredentialId" }, 400);
@@ -176,7 +176,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       id: built.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: ActionEventName.Reconfigured,
       type: built.type,
@@ -184,14 +184,14 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, actionId);
+    await refreshProjection(deps, auth.accountId, actionId);
     return c.json({ actionId });
   });
 
   router.post("/actions/:id/enable", async (c) => {
     const auth = getAuth(c);
     const actionId = c.req.param("id");
-    const owned = await loadOwnedAction(deps, auth.tenantId, actionId);
+    const owned = await loadOwnedAction(deps, auth.accountId, actionId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "detached") {
       return c.json({ error: "cannot enable a detached Action" }, 409);
@@ -203,7 +203,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       id: built.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: ActionEventName.Enabled,
       type: built.type,
@@ -211,14 +211,14 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, actionId);
+    await refreshProjection(deps, auth.accountId, actionId);
     return c.json({ actionId, status: "enabled" });
   });
 
   router.post("/actions/:id/disable", async (c) => {
     const auth = getAuth(c);
     const actionId = c.req.param("id");
-    const owned = await loadOwnedAction(deps, auth.tenantId, actionId);
+    const owned = await loadOwnedAction(deps, auth.accountId, actionId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "detached") {
       return c.json({ error: "cannot disable a detached Action" }, 409);
@@ -230,7 +230,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       id: built.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: ActionEventName.Disabled,
       type: built.type,
@@ -238,14 +238,14 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, actionId);
+    await refreshProjection(deps, auth.accountId, actionId);
     return c.json({ actionId, status: "disabled" });
   });
 
   router.delete("/actions/:id", async (c) => {
     const auth = getAuth(c);
     const actionId = c.req.param("id");
-    const owned = await loadOwnedAction(deps, auth.tenantId, actionId);
+    const owned = await loadOwnedAction(deps, auth.accountId, actionId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "detached") {
       return c.json({ actionId, status: "detached" });
@@ -257,7 +257,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       id: built.id,
       aggregateType: ACTION_AGGREGATE_TYPE,
       aggregateId: actionId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: ActionEventName.Detached,
       type: built.type,
@@ -265,7 +265,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, actionId);
+    await refreshProjection(deps, auth.accountId, actionId);
     return c.json({ actionId, status: "detached" });
   });
 

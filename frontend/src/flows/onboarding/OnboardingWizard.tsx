@@ -20,7 +20,7 @@ interface OnboardingWizardProps {
 }
 
 /**
- * Native, in-app first-run flow shown once per tenant per browser
+ * Native, in-app first-run flow shown once per account per browser
  * (research.md §1/§2) — credential creation itself stays on Logto's hosted
  * sign-up page; this wizard only covers what happens after a brand-new
  * user's first authenticated return.

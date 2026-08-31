@@ -29,7 +29,7 @@ function isValidAddresses(addresses: unknown): addresses is string[] {
 /**
  * The contract exposes one notification channel per account (no ID in the
  * path), so — mirroring the `account` aggregate's own pattern — the
- * `notification_channel` aggregate ID is simply the tenant ID rather than a
+ * `notification_channel` aggregate ID is simply the account ID rather than a
  * generated ULID; data-model.md's 1:many relationship is a future extension
  * point this iteration doesn't need to expose yet.
  */
@@ -40,7 +40,7 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
     const auth = getAuth(c);
     const { state } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.tenantId },
+      { accountId: auth.accountId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.accountId },
       initialNotificationChannelState,
       notificationChannelReducer,
     );
@@ -63,7 +63,7 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
 
     const { state, version } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.tenantId },
+      { accountId: auth.accountId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.accountId },
       initialNotificationChannelState,
       notificationChannelReducer,
     );
@@ -72,8 +72,8 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
     }
 
     const data: NotificationChannelRegisteredData = {
-      channelId: auth.tenantId,
-      accountId: auth.tenantId,
+      channelId: auth.accountId,
+      accountId: auth.accountId,
       type: body.type,
       addresses: body.addresses,
       registeredAt: new Date().toISOString(),
@@ -82,8 +82,8 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
     await deps.eventStore.append({
       id: built.id,
       aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE,
-      aggregateId: auth.tenantId,
-      tenantId: auth.tenantId,
+      aggregateId: auth.accountId,
+      accountId: auth.accountId,
       expectedSequenceNumber: version + 1,
       eventName: NotificationChannelEventName.Registered,
       type: built.type,
@@ -103,7 +103,7 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
 
     const { state, version } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.tenantId },
+      { accountId: auth.accountId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.accountId },
       initialNotificationChannelState,
       notificationChannelReducer,
     );
@@ -116,8 +116,8 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
     await deps.eventStore.append({
       id: built.id,
       aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE,
-      aggregateId: auth.tenantId,
-      tenantId: auth.tenantId,
+      aggregateId: auth.accountId,
+      accountId: auth.accountId,
       expectedSequenceNumber: version + 1,
       eventName: NotificationChannelEventName.Reconfigured,
       type: built.type,
@@ -132,7 +132,7 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
     const auth = getAuth(c);
     const { state, version } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.tenantId },
+      { accountId: auth.accountId, aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE, aggregateId: auth.accountId },
       initialNotificationChannelState,
       notificationChannelReducer,
     );
@@ -145,8 +145,8 @@ export function createNotificationChannelRoutes(deps: NotificationChannelRouteDe
     await deps.eventStore.append({
       id: built.id,
       aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE,
-      aggregateId: auth.tenantId,
-      tenantId: auth.tenantId,
+      aggregateId: auth.accountId,
+      accountId: auth.accountId,
       expectedSequenceNumber: version + 1,
       eventName: NotificationChannelEventName.Revoked,
       type: built.type,

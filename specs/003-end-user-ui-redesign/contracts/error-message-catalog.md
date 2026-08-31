@@ -8,7 +8,7 @@ Governs `frontend/src/lib/errors.ts` and `ErrorMessage.tsx` (FR-013/014/015). Ev
 function toUserMessage(err: unknown): string;
 ```
 
-Always returns a non-empty, plain-language string. Never throws. Never returns a value containing an HTTP status number, a backend `{ error: "..." }` string verbatim, a stack trace, or internal terms such as "event", "aggregate", "tenant", or a raw exception's `.message` unless that exact string has been deliberately whitelisted in the catalog as already plain-language.
+Always returns a non-empty, plain-language string. Never throws. Never returns a value containing an HTTP status number, a backend `{ error: "..." }` string verbatim, a stack trace, or internal terms such as "event", "aggregate", "account_id", or a raw exception's `.message` unless that exact string has been deliberately whitelisted in the catalog as already plain-language.
 
 ## Known mappings (initial set — extend as new backend error shapes are found during implementation)
 

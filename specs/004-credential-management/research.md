@@ -14,7 +14,7 @@ No `[NEEDS CLARIFICATION]` markers remained in `spec.md` after the `/speckit-cla
 
 ## 2. Reference-check is a route-level guard, not an aggregate invariant
 
-**Decision**: Before appending `revoked`, the `DELETE` handler replays every `action` aggregate for the tenant (via the existing `listAggregateIds` + `loadAggregate` pattern already used by `GET /provider-credentials`) and rejects with `409` if any non-`detached` Action's `config.providerCredentialId` matches.
+**Decision**: Before appending `revoked`, the `DELETE` handler replays every `action` aggregate for the account (via the existing `listAggregateIds` + `loadAggregate` pattern already used by `GET /provider-credentials`) and rejects with `409` if any non-`detached` Action's `config.providerCredentialId` matches.
 
 **Rationale**: Matches the existing precedent for cross-aggregate, request-time checks — e.g. `ip-clients.ts`'s `device_limit_reached` 409 replays the `account` aggregate before allowing a new IP Client. Keeps the `provider_credential` reducer free of any dependency on the `action` aggregate, preserving the hexagonal seam between them.
 
@@ -30,7 +30,7 @@ No `[NEEDS CLARIFICATION]` markers remained in `spec.md` after the `/speckit-cla
 
 ## 4. Name uniqueness enforced by replay, not a new index
 
-**Decision**: `POST /provider-credentials` rejects (`409`) a `label` that case-insensitively matches an existing *active* credential's `label` for the same tenant, checked via the same `listAggregateIds` + `loadAggregate` loop the existing `GET` handler already performs.
+**Decision**: `POST /provider-credentials` rejects (`409`) a `label` that case-insensitively matches an existing *active* credential's `label` for the same account, checked via the same `listAggregateIds` + `loadAggregate` loop the existing `GET` handler already performs.
 
 **Rationale**: SC-006's scale (≥5 entries, not hundreds) makes an O(n) replay-and-compare check trivial; matches the codebase's existing style of deriving read-time answers from aggregate replay rather than introducing new persisted lookup structures for small `n`.
 

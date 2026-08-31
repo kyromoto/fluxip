@@ -20,7 +20,7 @@
 
 ### User Story 1 - Deploy the same image to a new environment without rebuilding (Priority: P1)
 
-An operator deploys the pre-built FluxIP container image to a new environment (e.g. staging, a customer's environment, or a new tenant deployment) that has its own identity-provider settings and backend location. They set environment variables on the container and start it, without triggering a new frontend build.
+An operator deploys the pre-built FluxIP container image to a new environment (e.g. staging, a customer's environment, or a new customer's own deployment) that has its own identity-provider settings and backend location. They set environment variables on the container and start it, without triggering a new frontend build.
 
 **Why this priority**: This is the core problem the feature exists to solve — today, every environment-specific value is baked in at build time, so a new environment requires a new build and image. Without this, the feature delivers no value at all.
 

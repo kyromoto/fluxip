@@ -83,9 +83,9 @@ describe("Review, retry, and notification (User Story 3)", () => {
 
   const app = new Hono();
   app.use("*", async (c, next) => {
-    const tenantId = c.req.header("x-test-tenant") ?? "";
-    c.set("auth", { tenantId, roles: [] });
-    await accountService.ensureProvisioned(tenantId);
+    const accountId = c.req.header("x-test-account") ?? "";
+    c.set("auth", { accountId, roles: [] });
+    await accountService.ensureProvisioned(accountId);
     await next();
   });
   app.route("/ip-clients", createIpClientsRoutes({ config, eventStore, redis, accountService }));
@@ -96,8 +96,8 @@ describe("Review, retry, and notification (User Story 3)", () => {
   app.route("/", createIpClientHistoryRoutes({ eventStore }));
   app.route("/notification-channel", createNotificationChannelRoutes({ config, eventStore }));
 
-  function call(tenantId: string, path: string, init?: RequestInit): Promise<Response> {
-    return app.request(path, { ...init, headers: { ...init?.headers, "x-test-tenant": tenantId } });
+  function call(accountId: string, path: string, init?: RequestInit): Promise<Response> {
+    return app.request(path, { ...init, headers: { ...init?.headers, "x-test-account": accountId } });
   }
 
   beforeAll(async () => {
@@ -120,15 +120,15 @@ describe("Review, retry, and notification (User Story 3)", () => {
     await pool.end();
   });
 
-  async function reportIp(tenantId: string, ipClientId: string, ip: string): Promise<void> {
+  async function reportIp(accountId: string, ipClientId: string, ip: string): Promise<void> {
     const reportData: IpClientIpReportReceivedData = { reportedIPv4: ip, receivedAt: new Date().toISOString() };
     const built = buildDomainEvent(config, IP_CLIENT_AGGREGATE_TYPE, IpClientEventName.IpReportReceived, reportData);
-    const events = await eventStore.readStream({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
+    const events = await eventStore.readStream({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId });
     await eventStore.append({
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: events.length + 1,
       eventName: IpClientEventName.IpReportReceived,
       type: built.type,
@@ -136,27 +136,27 @@ describe("Review, retry, and notification (User Story 3)", () => {
       time: built.time,
       data: built.data,
     });
-    await scheduleDebounce(debounceQueue, config, ipClientId, tenantId);
+    await scheduleDebounce(debounceQueue, config, ipClientId, accountId);
   }
 
   it("surfaces a diagnosable failure, notifies on it, then succeeds and notifies again, and supports manual re-run", async () => {
-    const tenantId = `test-review-${Date.now()}`;
+    const accountId = `test-review-${Date.now()}`;
 
-    const credRes = await call(tenantId, "/provider-credentials", {
+    const credRes = await call(accountId, "/provider-credentials", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ provider: "hetzner", label: "cred", secret: "fake-token" }),
     });
     const { credentialId } = (await credRes.json()) as { credentialId: string };
 
-    const ipClientRes = await call(tenantId, "/ip-clients", {
+    const ipClientRes = await call(accountId, "/ip-clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ label: "device" }),
     });
     const { ipClientId } = (await ipClientRes.json()) as { ipClientId: string };
 
-    const attachRes = await call(tenantId, `/ip-clients/${ipClientId}/actions`, {
+    const attachRes = await call(accountId, `/ip-clients/${ipClientId}/actions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -167,14 +167,14 @@ describe("Review, retry, and notification (User Story 3)", () => {
     });
     const { actionId } = (await attachRes.json()) as { actionId: string };
 
-    const channelRes = await call(tenantId, "/notification-channel", {
+    const channelRes = await call(accountId, "/notification-channel", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "email", addresses: ["ops@example.com"] }),
     });
     expect(channelRes.status).toBe(201);
 
-    const prefRes = await call(tenantId, `/ip-clients/${ipClientId}/notification-preference`, {
+    const prefRes = await call(accountId, `/ip-clients/${ipClientId}/notification-preference`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ preference: "all" }),
@@ -183,15 +183,15 @@ describe("Review, retry, and notification (User Story 3)", () => {
 
     // 1. Failing execution — SC-006: error message sufficient to self-diagnose.
     executor.shouldFail = true;
-    await reportIp(tenantId, ipClientId, "203.0.113.50");
+    await reportIp(accountId, ipClientId, "203.0.113.50");
 
     await waitFor(async () => {
-      const res = await call(tenantId, `/actions/${actionId}/executions`);
+      const res = await call(accountId, `/actions/${actionId}/executions`);
       const { items } = (await res.json()) as { items: { status: string }[] };
       return items.some((i) => i.status === "failed");
     });
 
-    const executionsAfterFailure = (await (await call(tenantId, `/actions/${actionId}/executions`)).json()) as {
+    const executionsAfterFailure = (await (await call(accountId, `/actions/${actionId}/executions`)).json()) as {
       items: { status: string; error: string | null }[];
     };
     const failed = executionsAfterFailure.items.find((i) => i.status === "failed");
@@ -203,10 +203,10 @@ describe("Review, retry, and notification (User Story 3)", () => {
     // 2. Fix and retrigger — succeeds and notifies again (SC-007).
     const sentBeforeSuccess = notificationChannel.sent.length;
     executor.shouldFail = false;
-    await reportIp(tenantId, ipClientId, "203.0.113.51");
+    await reportIp(accountId, ipClientId, "203.0.113.51");
 
     await waitFor(async () => {
-      const res = await call(tenantId, `/actions/${actionId}/executions`);
+      const res = await call(accountId, `/actions/${actionId}/executions`);
       const { items } = (await res.json()) as { items: { status: string }[] };
       return items.some((i) => i.status === "succeeded");
     });
@@ -214,24 +214,24 @@ describe("Review, retry, and notification (User Story 3)", () => {
     expect(notificationChannel.sent.at(-1)?.body).toContain("succeeded");
 
     // 3. Manual re-run (FR-023) — uses last known IP without a new trigger call.
-    const executionsBeforeManual = (await (await call(tenantId, `/actions/${actionId}/executions`)).json()) as {
+    const executionsBeforeManual = (await (await call(accountId, `/actions/${actionId}/executions`)).json()) as {
       items: unknown[];
     };
-    const runRes = await call(tenantId, `/actions/${actionId}/run`, { method: "POST" });
+    const runRes = await call(accountId, `/actions/${actionId}/run`, { method: "POST" });
     expect(runRes.status).toBe(202);
 
     await waitFor(async () => {
-      const res = await call(tenantId, `/actions/${actionId}/executions`);
+      const res = await call(accountId, `/actions/${actionId}/executions`);
       const { items } = (await res.json()) as { items: unknown[] };
       return items.length > executionsBeforeManual.items.length;
     });
-    const finalExecutions = (await (await call(tenantId, `/actions/${actionId}/executions`)).json()) as {
+    const finalExecutions = (await (await call(accountId, `/actions/${actionId}/executions`)).json()) as {
       items: { triggeredBy: string }[];
     };
     expect(finalExecutions.items.some((i) => i.triggeredBy === "manual")).toBe(true);
 
     // History feed correlates ip_changed events with their resulting executions.
-    const historyRes = await call(tenantId, `/ip-clients/${ipClientId}/history`);
+    const historyRes = await call(accountId, `/ip-clients/${ipClientId}/history`);
     const history = (await historyRes.json()) as { items: { executions: unknown[] }[] };
     expect(history.items.length).toBeGreaterThanOrEqual(2);
     expect(history.items.every((h) => h.executions.length >= 1)).toBe(true);

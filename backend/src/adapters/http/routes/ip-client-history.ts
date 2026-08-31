@@ -26,25 +26,25 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
 
     const { state: ipClientState, events } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+      { accountId: auth.accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
       initialIpClientState,
       ipClientReducer,
     );
-    if (!ipClientState.ipClientId || ipClientState.accountId !== auth.tenantId) {
+    if (!ipClientState.ipClientId || ipClientState.accountId !== auth.accountId) {
       return c.json({ error: "not found" }, 404);
     }
 
     const ipChangedEvents = events.filter((e) => e.eventName === IpClientEventName.IpChanged);
 
     const actionIds = await deps.eventStore.listAggregateIds({
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       aggregateType: ACTION_AGGREGATE_TYPE,
     });
     const relevantActionIds = new Set<string>();
     for (const actionId of actionIds) {
       const { state } = await loadAggregate(
         deps.eventStore,
-        { tenantId: auth.tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+        { accountId: auth.accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
         initialActionState,
         actionReducer,
       );
@@ -52,14 +52,14 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
     }
 
     const executionIds = await deps.eventStore.listAggregateIds({
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE,
     });
     const executions: ActionExecutionState[] = [];
     for (const executionId of executionIds) {
       const { state } = await loadAggregate(
         deps.eventStore,
-        { tenantId: auth.tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
+        { accountId: auth.accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
         initialActionExecutionState,
         actionExecutionReducer,
       );

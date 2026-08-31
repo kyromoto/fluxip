@@ -37,8 +37,8 @@ The one piece of frontend state that *does* persist, and only in `localStorage` 
 
 | Field | Type | Notes |
 |---|---|---|
-| key | `` fluxip.onboarding.<tenantId>.completed `` | `tenantId` is the Logto `sub` claim already used as the account aggregate ID server-side; namespacing by it means multiple accounts on one shared browser don't leak each other's onboarding state. |
-| value | `"true"` \| absent | Absent ⇒ show the onboarding flow on next authenticated render for that tenant; set once the flow is completed or dismissed. |
+| key | `` fluxip.onboarding.<accountId>.completed `` | `accountId` is the Logto `sub` claim already used as the account aggregate ID server-side; namespacing by it means multiple accounts on one shared browser don't leak each other's onboarding state. |
+| value | `"true"` \| absent | Absent ⇒ show the onboarding flow on next authenticated render for that account; set once the flow is completed or dismissed. |
 
 ### ErrorMessageMapping entry
 

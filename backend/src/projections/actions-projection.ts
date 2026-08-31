@@ -13,8 +13,8 @@ export interface ActionSummary {
   status: ActionState["status"];
 }
 
-function projectionKey(tenantId: string, ipClientId: string): string {
-  return `proj:${tenantId}:ip_client:${ipClientId}:actions`;
+function projectionKey(accountId: string, ipClientId: string): string {
+  return `proj:${accountId}:ip_client:${ipClientId}:actions`;
 }
 
 function toSummary(state: ActionState): ActionSummary | null {
@@ -29,10 +29,10 @@ function toSummary(state: ActionState): ActionSummary | null {
   };
 }
 
-export async function upsertActionProjection(redis: Redis, tenantId: string, state: ActionState): Promise<void> {
+export async function upsertActionProjection(redis: Redis, accountId: string, state: ActionState): Promise<void> {
   const summary = toSummary(state);
   if (!summary) return;
-  const key = projectionKey(tenantId, summary.ipClientId);
+  const key = projectionKey(accountId, summary.ipClientId);
   if (summary.status === "detached") {
     await redis.hdel(key, summary.actionId);
     return;
@@ -43,17 +43,17 @@ export async function upsertActionProjection(redis: Redis, tenantId: string, sta
 export async function rebuildActionsProjection(
   redis: Redis,
   eventStore: EventStore,
-  tenantId: string,
+  accountId: string,
   ipClientId: string,
 ): Promise<void> {
-  const allActionIds = await eventStore.listAggregateIds({ tenantId, aggregateType: ACTION_AGGREGATE_TYPE });
-  const key = projectionKey(tenantId, ipClientId);
+  const allActionIds = await eventStore.listAggregateIds({ accountId, aggregateType: ACTION_AGGREGATE_TYPE });
+  const key = projectionKey(accountId, ipClientId);
   await redis.del(key);
 
   for (const actionId of allActionIds) {
     const { state } = await loadAggregate(
       eventStore,
-      { tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+      { accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
       initialActionState,
       actionReducer,
     );
@@ -68,13 +68,13 @@ export async function rebuildActionsProjection(
 export async function listActionsProjection(
   redis: Redis,
   eventStore: EventStore,
-  tenantId: string,
+  accountId: string,
   ipClientId: string,
 ): Promise<ActionSummary[]> {
-  const key = projectionKey(tenantId, ipClientId);
+  const key = projectionKey(accountId, ipClientId);
   const exists = await redis.exists(key);
   if (!exists) {
-    await rebuildActionsProjection(redis, eventStore, tenantId, ipClientId);
+    await rebuildActionsProjection(redis, eventStore, accountId, ipClientId);
   }
   const raw = await redis.hgetall(key);
   return Object.values(raw).map((v) => JSON.parse(v) as ActionSummary);

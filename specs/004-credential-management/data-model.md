@@ -1,6 +1,6 @@
 # Phase 1 Data Model: Provider Credential Management
 
-This feature extends the `provider_credential` aggregate already defined in `specs/001-ip-change-automation/data-model.md` (event-sourced; own aggregate stream, identified by `credentialId`; every event carries `tenant_id`). It does **not** introduce a new aggregate. Only the deltas are documented below — see 001's `data-model.md` for the full original definition, relationships diagram, and cross-cutting rules (tenant isolation, event-store immutability, disposable projections), which continue to apply unchanged.
+This feature extends the `provider_credential` aggregate already defined in `specs/001-ip-change-automation/data-model.md` (event-sourced; own aggregate stream, identified by `credentialId`; every event carries `account_id`). It does **not** introduce a new aggregate. Only the deltas are documented below — see 001's `data-model.md` for the full original definition, relationships diagram, and cross-cutting rules (account isolation, event-store immutability, disposable projections), which continue to apply unchanged.
 
 ## Aggregate: `provider_credential` (extended)
 
@@ -9,7 +9,7 @@ This feature extends the `provider_credential` aggregate already defined in `spe
 | Field | Type | Notes |
 |---|---|---|
 | `credentialId` | string | Aggregate ID |
-| `accountId` | string | Owning tenant |
+| `accountId` | string | Owning account |
 | `provider` | string, extensible | `"hetzner"` in this iteration; doubles as the spec's "Credential Type" identifier (FR-005) |
 | `label` | string | User-chosen display name; **now required unique (case-insensitive) among the account's other active entries (FR-003)** |
 | `encryptedSecret` | string | Reversibly encrypted secret value; **never decrypted for display purposes (FR-004a) — decrypted only at Action-execution time to call the provider's API** |

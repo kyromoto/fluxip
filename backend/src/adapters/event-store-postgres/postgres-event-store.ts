@@ -13,7 +13,7 @@ interface EventRow {
   aggregate_type: string;
   aggregate_id: string;
   sequence_number: string;
-  tenant_id: string;
+  account_id: string;
   event_name: string;
   type: string;
   source: string;
@@ -27,7 +27,7 @@ function mapRow<TData>(row: EventRow): StoredEvent<TData> {
     aggregateType: row.aggregate_type,
     aggregateId: row.aggregate_id,
     sequenceNumber: Number(row.sequence_number),
-    tenantId: row.tenant_id,
+    accountId: row.account_id,
     eventName: row.event_name,
     type: row.type,
     source: row.source,
@@ -47,7 +47,7 @@ export class PostgresEventStore implements EventStore {
     try {
       const result = await this.pool.query<EventRow>(
         `INSERT INTO events
-           (id, aggregate_type, aggregate_id, sequence_number, tenant_id, event_name, type, source, time, data)
+           (id, aggregate_type, aggregate_id, sequence_number, account_id, event_name, type, source, time, data)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`,
         [
@@ -55,7 +55,7 @@ export class PostgresEventStore implements EventStore {
           input.aggregateType,
           input.aggregateId,
           input.expectedSequenceNumber,
-          input.tenantId,
+          input.accountId,
           input.eventName,
           input.type,
           input.source,
@@ -79,30 +79,30 @@ export class PostgresEventStore implements EventStore {
   async readStream<TData = unknown>(params: ReadStreamParams): Promise<StoredEvent<TData>[]> {
     const result = await this.pool.query<EventRow>(
       `SELECT * FROM events
-       WHERE tenant_id = $1 AND aggregate_type = $2 AND aggregate_id = $3
+       WHERE account_id = $1 AND aggregate_type = $2 AND aggregate_id = $3
        ORDER BY sequence_number ASC`,
-      [params.tenantId, params.aggregateType, params.aggregateId],
+      [params.accountId, params.aggregateType, params.aggregateId],
     );
     return result.rows.map((row) => mapRow<TData>(row));
   }
 
   async listAggregateIds(params: ListAggregateIdsParams): Promise<string[]> {
     const result = await this.pool.query<{ aggregate_id: string }>(
-      `SELECT DISTINCT aggregate_id FROM events WHERE tenant_id = $1 AND aggregate_type = $2`,
-      [params.tenantId, params.aggregateType],
+      `SELECT DISTINCT aggregate_id FROM events WHERE account_id = $1 AND aggregate_type = $2`,
+      [params.accountId, params.aggregateType],
     );
     return result.rows.map((row) => row.aggregate_id);
   }
 
-  async resolveTenantId(aggregateType: string, aggregateId: string): Promise<string | null> {
-    const result = await this.pool.query<{ tenant_id: string }>(
-      `SELECT tenant_id FROM events WHERE aggregate_type = $1 AND aggregate_id = $2 LIMIT 1`,
+  async resolveAccountId(aggregateType: string, aggregateId: string): Promise<string | null> {
+    const result = await this.pool.query<{ account_id: string }>(
+      `SELECT account_id FROM events WHERE aggregate_type = $1 AND aggregate_id = $2 LIMIT 1`,
       [aggregateType, aggregateId],
     );
-    return result.rows[0]?.tenant_id ?? null;
+    return result.rows[0]?.account_id ?? null;
   }
 
-  async deleteTenant(tenantId: string): Promise<void> {
-    await this.pool.query(`DELETE FROM events WHERE tenant_id = $1`, [tenantId]);
+  async deleteAccount(accountId: string): Promise<void> {
+    await this.pool.query(`DELETE FROM events WHERE account_id = $1`, [accountId]);
   }
 }

@@ -113,12 +113,12 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
   });
 
   it(`processes ${IP_CLIENT_COUNT} IP Clients' flapping reports across 2 simulated replicas with no duplicate or missing executions`, async () => {
-    const tenantId = `test-scale-${Date.now()}`;
+    const accountId = `test-scale-${Date.now()}`;
 
     const credentialId = `test-scale-cred-${Date.now()}`;
     const storedData: ProviderCredentialStoredData = {
       credentialId,
-      accountId: tenantId,
+      accountId: accountId,
       provider: "hetzner",
       label: "Scale test credential",
       encryptedSecret: encryptSecret("fake-hetzner-token", config.credentialEncryptionKey),
@@ -129,7 +129,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
       id: storedEvent.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: storedEvent.type,
@@ -139,8 +139,8 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
     });
 
     const channelData: NotificationChannelRegisteredData = {
-      channelId: tenantId,
-      accountId: tenantId,
+      channelId: accountId,
+      accountId: accountId,
       type: "email",
       addresses: ["ops@example.com"],
       registeredAt: new Date().toISOString(),
@@ -149,8 +149,8 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
     await eventStore.append({
       id: channelEvent.id,
       aggregateType: NOTIFICATION_CHANNEL_AGGREGATE_TYPE,
-      aggregateId: tenantId,
-      tenantId,
+      aggregateId: accountId,
+      accountId,
       expectedSequenceNumber: 1,
       eventName: NotificationChannelEventName.Registered,
       type: channelEvent.type,
@@ -166,7 +166,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
       const { secret, hash } = generateCredential();
       const registeredData: IpClientRegisteredData = {
         ipClientId,
-        accountId: tenantId,
+        accountId: accountId,
         label: `Scale device ${i}`,
         credentialHash: hash,
         registeredAt: new Date().toISOString(),
@@ -176,7 +176,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
         id: registeredEvent.id,
         aggregateType: IP_CLIENT_AGGREGATE_TYPE,
         aggregateId: ipClientId,
-        tenantId,
+        accountId,
         expectedSequenceNumber: 1,
         eventName: IpClientEventName.Registered,
         type: registeredEvent.type,
@@ -192,7 +192,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
           id: prefEvent.id,
           aggregateType: IP_CLIENT_AGGREGATE_TYPE,
           aggregateId: ipClientId,
-          tenantId,
+          accountId,
           expectedSequenceNumber: 2,
           eventName: IpClientEventName.NotificationPreferenceSet,
           type: prefEvent.type,
@@ -205,7 +205,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
       const actionId = `test-scale-action-${Date.now()}-${i}`;
       const attachedData: ActionAttachedData = {
         actionId,
-        accountId: tenantId,
+        accountId: accountId,
         ipClientId,
         type: UPDATE_DNS_RECORD_ACTION_TYPE,
         addressFamilies: ["ipv4"],
@@ -217,7 +217,7 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
         id: attachedEvent.id,
         aggregateType: ACTION_AGGREGATE_TYPE,
         aggregateId: actionId,
-        tenantId,
+        accountId,
         expectedSequenceNumber: 1,
         eventName: ActionEventName.Attached,
         type: attachedEvent.type,
@@ -252,12 +252,12 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
     const actionIds = new Set(ipClients.map((c) => c.actionId));
 
     await waitFor(async () => {
-      const executionIds = await eventStore.listAggregateIds({ tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE });
+      const executionIds = await eventStore.listAggregateIds({ accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE });
       const succeededActionIds = new Set<string>();
       for (const id of executionIds) {
         const { state } = await loadAggregate(
           eventStore,
-          { tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: id },
+          { accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: id },
           initialActionExecutionState,
           actionExecutionReducer,
         );
@@ -271,12 +271,12 @@ describe("Horizontal scale & multi-device (SC-004/SC-005)", () => {
     const elapsedMs = Date.now() - start;
 
     // SC-004: exactly one succeeded execution per IP Client — no duplicates, none missing.
-    const executionIds = await eventStore.listAggregateIds({ tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE });
+    const executionIds = await eventStore.listAggregateIds({ accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE });
     const succeededByAction = new Map<string, number>();
     for (const id of executionIds) {
       const { state } = await loadAggregate(
         eventStore,
-        { tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: id },
+        { accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: id },
         initialActionExecutionState,
         actionExecutionReducer,
       );

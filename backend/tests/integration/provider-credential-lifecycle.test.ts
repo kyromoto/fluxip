@@ -17,7 +17,7 @@ const config = loadConfig(process.env);
  * reused across multiple independent Actions, and blocked from deletion — naming every
  * referencing Action — until all of them are detached. Against real Postgres+Redis, per
  * this repo's existing testing convention (research.md §Testing). Auth is substituted the
- * same way as tenant-isolation.test.ts.
+ * same way as account-isolation.test.ts.
  */
 describe("Provider Credential lifecycle: reuse across multiple Actions (User Story 3)", () => {
   const pool = new Pool({ connectionString: config.databaseUrl });
@@ -27,9 +27,9 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
 
   const app = new Hono();
   app.use("*", async (c, next) => {
-    const tenantId = c.req.header("x-test-tenant") ?? "";
-    c.set("auth", { tenantId, roles: [] });
-    await accountService.ensureProvisioned(tenantId);
+    const accountId = c.req.header("x-test-account") ?? "";
+    c.set("auth", { accountId, roles: [] });
+    await accountService.ensureProvisioned(accountId);
     await next();
   });
   app.route("/provider-credentials", createProviderCredentialsRoutes({ config, eventStore }));
@@ -44,8 +44,8 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
     await pool.end();
   });
 
-  function call(tenantId: string, path: string, init?: RequestInit): Promise<Response> {
-    return app.request(path, { ...init, headers: { ...init?.headers, "x-test-tenant": tenantId } });
+  function call(accountId: string, path: string, init?: RequestInit): Promise<Response> {
+    return app.request(path, { ...init, headers: { ...init?.headers, "x-test-account": accountId } });
   }
 
   async function json<T>(res: Response): Promise<T> {
@@ -53,9 +53,9 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
   }
 
   it("creates one credential, attaches it to two Actions, blocks delete naming both, then allows delete once both are detached", async () => {
-    const tenantId = `lifecycle-${Date.now()}`;
+    const accountId = `lifecycle-${Date.now()}`;
 
-    const credRes = await call(tenantId, "/provider-credentials", {
+    const credRes = await call(accountId, "/provider-credentials", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ provider: "hetzner", label: "Shared credential", secret: "shared-token-1234" }),
@@ -63,14 +63,14 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
     expect(credRes.status).toBe(201);
     const { credentialId } = await json<{ credentialId: string }>(credRes);
 
-    const deviceARes = await call(tenantId, "/ip-clients", {
+    const deviceARes = await call(accountId, "/ip-clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ label: "Device A" }),
     });
     const { ipClientId: ipClientA } = await json<{ ipClientId: string }>(deviceARes);
 
-    const deviceBRes = await call(tenantId, "/ip-clients", {
+    const deviceBRes = await call(accountId, "/ip-clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ label: "Device B" }),
@@ -78,7 +78,7 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
     const { ipClientId: ipClientB } = await json<{ ipClientId: string }>(deviceBRes);
 
     async function attach(ipClientId: string, recordName: string): Promise<string> {
-      const res = await call(tenantId, `/ip-clients/${ipClientId}/actions`, {
+      const res = await call(accountId, `/ip-clients/${ipClientId}/actions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -96,7 +96,7 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
     const actionB = await attach(ipClientB, "b.example.com");
 
     // Both Actions independently reference the same shared entry (FR-008/US3 AC1-2).
-    const blocked = await call(tenantId, `/provider-credentials/${credentialId}`, { method: "DELETE" });
+    const blocked = await call(accountId, `/provider-credentials/${credentialId}`, { method: "DELETE" });
     expect(blocked.status).toBe(409);
     const blockedBody = await json<{ error: string; usedBy: { actionId: string; ipClientId: string }[] }>(blocked);
     expect(blockedBody.error).toBe("credential_in_use");
@@ -104,21 +104,21 @@ describe("Provider Credential lifecycle: reuse across multiple Actions (User Sto
     expect(blockedBody.usedBy.map((u) => u.actionId).sort()).toEqual([actionA, actionB].sort());
 
     // Detaching only one Action still leaves the credential referenced by the other.
-    const detachA = await call(tenantId, `/actions/${actionA}`, { method: "DELETE" });
+    const detachA = await call(accountId, `/actions/${actionA}`, { method: "DELETE" });
     expect(detachA.status).toBe(200);
-    const stillBlocked = await call(tenantId, `/provider-credentials/${credentialId}`, { method: "DELETE" });
+    const stillBlocked = await call(accountId, `/provider-credentials/${credentialId}`, { method: "DELETE" });
     expect(stillBlocked.status).toBe(409);
     const stillBlockedBody = await json<{ usedBy: { actionId: string }[] }>(stillBlocked);
     expect(stillBlockedBody.usedBy).toHaveLength(1);
     expect(stillBlockedBody.usedBy[0].actionId).toBe(actionB);
 
     // Detaching the second Action clears the last reference; delete now succeeds.
-    const detachB = await call(tenantId, `/actions/${actionB}`, { method: "DELETE" });
+    const detachB = await call(accountId, `/actions/${actionB}`, { method: "DELETE" });
     expect(detachB.status).toBe(200);
-    const finalDelete = await call(tenantId, `/provider-credentials/${credentialId}`, { method: "DELETE" });
+    const finalDelete = await call(accountId, `/provider-credentials/${credentialId}`, { method: "DELETE" });
     expect(finalDelete.status).toBe(204);
 
-    const listRes = await call(tenantId, "/provider-credentials");
+    const listRes = await call(accountId, "/provider-credentials");
     const { items } = await json<{ items: unknown[] }>(listRes);
     expect(items).toHaveLength(0);
   });

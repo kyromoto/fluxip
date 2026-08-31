@@ -8,7 +8,7 @@
 
 ## Summary
 
-FluxIP lets a user register, attach one or more IP Clients (the spec's "Trigger Device", e.g. a FritzBox) that report public-IP changes via a DynDNS-compatible endpoint, and configure per-client Actions (initially: update a Hetzner DNS record) that fire automatically and idempotently when a change is confirmed. The system is multi-tenant (isolation enforced at the data-access layer, no cross-tenant visibility), horizontally scalable (no in-process state), and built as an event-sourced system: Postgres is the append-only CloudEvents store and source of truth, Redis/BullMQ handle distributed, exactly-once job processing and disposable read-model projections, and a Hono/TypeScript backend + SolidJS frontend are packaged as Docker containers alongside Postgres, Redis, and a Logto OIDC identity provider.
+FluxIP lets a user register, attach one or more IP Clients (the spec's "Trigger Device", e.g. a FritzBox) that report public-IP changes via a DynDNS-compatible endpoint, and configure per-client Actions (initially: update a Hetzner DNS record) that fire automatically and idempotently when a change is confirmed. The system enforces per-account data isolation at the data-access layer (no cross-account visibility), is horizontally scalable (no in-process state), and built as an event-sourced system: Postgres is the append-only CloudEvents store and source of truth, Redis/BullMQ handle distributed, exactly-once job processing and disposable read-model projections, and a Hono/TypeScript backend + SolidJS frontend are packaged as Docker containers alongside Postgres, Redis, and a Logto OIDC identity provider.
 
 ## Technical Context
 
@@ -26,9 +26,9 @@ FluxIP lets a user register, attach one or more IP Clients (the spec's "Trigger 
 
 **Performance Goals**: Trigger-ingestion endpoint acknowledges an inbound IP-change report in <200ms p95 (actual Action execution happens asynchronously via BullMQ); satisfies spec SC-002 (99% of confirmed changes reflected in DNS within 5 minutes) and SC-007 (99% of enabled notifications delivered within 1 minute)
 
-**Constraints**: No in-memory or single-instance-local state anywhere in the request/processing path (FR-015); event store rows are immutable/append-only except for the explicit, deliberate account-deletion hard-delete (see research.md); tenant filtering enforced at the data-access layer, not only in application logic; configuration exclusively via environment variables, no config files baked into the image; CloudEvents `source` and `type` prefix are environment-configured, never hardcoded
+**Constraints**: No in-memory or single-instance-local state anywhere in the request/processing path (FR-015); event store rows are immutable/append-only except for the explicit, deliberate account-deletion hard-delete (see research.md); account filtering enforced at the data-access layer, not only in application logic; configuration exclusively via environment variables, no config files baked into the image; CloudEvents `source` and `type` prefix are environment-configured, never hardcoded
 
-**Scale/Scope**: Single-tenant-per-user model (no organizations/multi-member tenants) on a shared multi-instance deployment; SC-005 requires at least 10 IP Clients per user with no degradation; SC-004 requires correctness (no dupes/drops) across ≥1,000 concurrently processed IP-change reports
+**Scale/Scope**: One account per user, with no organizations or shared multi-user workspaces, on a shared multi-instance deployment; SC-005 requires at least 10 IP Clients per user with no degradation; SC-004 requires correctness (no dupes/drops) across ≥1,000 concurrently processed IP-change reports
 
 ## Constitution Check
 

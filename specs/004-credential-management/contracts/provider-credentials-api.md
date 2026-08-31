@@ -21,7 +21,7 @@ REST endpoints under the existing authenticated Management API (Logto-verified `
 
 ## Unchanged from 001
 
-- Every list/get/delete scopes to the caller's `accountId` at the query layer; a request for another tenant's credential ID returns `404`, not `403` (FR-014, matching the cross-cutting convention in 001's `management-api.md`).
+- Every list/get/delete scopes to the caller's `accountId` at the query layer; a request for another account's credential ID returns `404`, not `403` (FR-014, matching the cross-cutting convention in 001's `management-api.md`).
 - `Action` creation/reconfiguration (`POST /api/ip-clients/{ipClientId}/actions`, `PUT /api/actions/{id}`) continues to validate that `config.providerCredentialId` refers to an `active` credential owned by the same account, unchanged from 001.
 
 ## Explicitly out of scope for this feature

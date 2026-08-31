@@ -19,8 +19,8 @@ export interface ExecutionSummary {
   error: string | null;
 }
 
-function projectionKey(tenantId: string, actionId: string): string {
-  return `proj:${tenantId}:action:${actionId}:executions`;
+function projectionKey(accountId: string, actionId: string): string {
+  return `proj:${accountId}:action:${actionId}:executions`;
 }
 
 function toSummary(state: ActionExecutionState): ExecutionSummary | null {
@@ -39,31 +39,31 @@ function toSummary(state: ActionExecutionState): ExecutionSummary | null {
 
 export async function upsertExecutionProjection(
   redis: Redis,
-  tenantId: string,
+  accountId: string,
   state: ActionExecutionState,
 ): Promise<void> {
   const summary = toSummary(state);
   if (!summary) return;
-  await redis.hset(projectionKey(tenantId, summary.actionId), summary.executionId, JSON.stringify(summary));
+  await redis.hset(projectionKey(accountId, summary.actionId), summary.executionId, JSON.stringify(summary));
 }
 
 export async function rebuildExecutionsProjection(
   redis: Redis,
   eventStore: EventStore,
-  tenantId: string,
+  accountId: string,
   actionId: string,
 ): Promise<void> {
   const allExecutionIds = await eventStore.listAggregateIds({
-    tenantId,
+    accountId,
     aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE,
   });
-  const key = projectionKey(tenantId, actionId);
+  const key = projectionKey(accountId, actionId);
   await redis.del(key);
 
   for (const executionId of allExecutionIds) {
     const { state } = await loadAggregate(
       eventStore,
-      { tenantId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
+      { accountId, aggregateType: ACTION_EXECUTION_AGGREGATE_TYPE, aggregateId: executionId },
       initialActionExecutionState,
       actionExecutionReducer,
     );
@@ -78,13 +78,13 @@ export async function rebuildExecutionsProjection(
 export async function listExecutionsProjection(
   redis: Redis,
   eventStore: EventStore,
-  tenantId: string,
+  accountId: string,
   actionId: string,
 ): Promise<ExecutionSummary[]> {
-  const key = projectionKey(tenantId, actionId);
+  const key = projectionKey(accountId, actionId);
   const exists = await redis.exists(key);
   if (!exists) {
-    await rebuildExecutionsProjection(redis, eventStore, tenantId, actionId);
+    await rebuildExecutionsProjection(redis, eventStore, accountId, actionId);
   }
   const raw = await redis.hgetall(key);
   return Object.values(raw).map((v) => JSON.parse(v) as ExecutionSummary);

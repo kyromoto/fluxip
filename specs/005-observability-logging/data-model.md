@@ -12,7 +12,7 @@ A structured LogTape `LogRecord` emitted under the `["fluxip", "app", ...]` cate
 | `level` | `"debug"` \| `"info"` \| `"warning"` \| `"error"` \| `"fatal"` | `"error"`/`"fatal"` for FR-003's error entries; `"info"` for normal lifecycle entries |
 | `message` | string (template) | Human-readable, e.g. `"IP change confirmed for {ipClientId}"` |
 | `correlationId` | string \| absent | Present on every entry belonging to a traceable operation (FR-004); **absent** on raw `ip_report_received` entries (research.md §3) since those precede any confirmed operation. Value = the existing `causationEventId`: the `ip_client.ip_changed` event's own ID for automatic executions, or the manual request's own ID for a manual re-run (`data-model.md`'s `action_execution.causationEventId` in 001, unchanged) |
-| `tenantId` | string | The owning account — always present, consistent with 001's tenant-isolation cross-cutting rule |
+| `accountId` | string | The owning account — always present, consistent with 001's account-isolation cross-cutting rule |
 | `ipClientId` | string \| absent | Present on trigger-report, ip-changed, and execution-related entries |
 | `actionId` / `executionId` | string \| absent | Present on Action-execution entries (FR-002/FR-005) |
 | `outcome` | `"succeeded"` \| `"failed"` \| absent | Present on execution-outcome entries |

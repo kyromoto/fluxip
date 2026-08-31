@@ -2,7 +2,7 @@ import type { Config } from "../../config/env.js";
 
 /**
  * Logto's Management API always uses this fixed resource indicator, regardless
- * of deployment/custom domain — it identifies the API itself, not a per-tenant
+ * of deployment/custom domain — it identifies the API itself, not a per-account
  * value, so (unlike BACKEND_LOGTO_ENDPOINT etc.) it is not deployment configuration.
  */
 const MANAGEMENT_API_RESOURCE = "https://default.logto.app/api";
@@ -46,7 +46,7 @@ async function getManagementAccessToken(config: Config): Promise<string> {
 
 /**
  * Proxies an in-app password change to Logto's Management API (research.md §15).
- * `logtoUserId` is the same Logto subject already used as `tenant_id` elsewhere.
+ * `logtoUserId` is the same Logto subject already used as `account_id` elsewhere.
  * The plaintext password passes through only transiently, for this one call —
  * it is never logged, persisted, or included in any event payload.
  */

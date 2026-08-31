@@ -33,13 +33,13 @@ export interface IpClientsRouteDeps {
   accountService: AccountService;
 }
 
-async function countActiveIpClients(eventStore: EventStore, tenantId: string): Promise<number> {
-  const ids = await eventStore.listAggregateIds({ tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE });
+async function countActiveIpClients(eventStore: EventStore, accountId: string): Promise<number> {
+  const ids = await eventStore.listAggregateIds({ accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE });
   let count = 0;
   for (const id of ids) {
     const { state } = await loadAggregate(
       eventStore,
-      { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: id },
+      { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: id },
       initialIpClientState,
       ipClientReducer,
     );
@@ -48,29 +48,29 @@ async function countActiveIpClients(eventStore: EventStore, tenantId: string): P
   return count;
 }
 
-async function refreshProjection(deps: IpClientsRouteDeps, tenantId: string, ipClientId: string): Promise<void> {
+async function refreshProjection(deps: IpClientsRouteDeps, accountId: string, ipClientId: string): Promise<void> {
   const { state } = await loadAggregate(
     deps.eventStore,
-    { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+    { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
     initialIpClientState,
     ipClientReducer,
   );
-  await upsertIpClientProjection(deps.redis, tenantId, state);
+  await upsertIpClientProjection(deps.redis, accountId, state);
 }
 
-/** Loads the IP Client and returns its state+version only if owned by this tenant, else null (404, not 403 — FR-013/SC-003). */
+/** Loads the IP Client and returns its state+version only if owned by this account, else null (404, not 403 — FR-013/SC-003). */
 async function loadOwnedIpClient(
   deps: IpClientsRouteDeps,
-  tenantId: string,
+  accountId: string,
   ipClientId: string,
 ): Promise<{ state: IpClientState; version: number } | null> {
   const { state, version } = await loadAggregate(
     deps.eventStore,
-    { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+    { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
     initialIpClientState,
     ipClientReducer,
   );
-  if (!state.ipClientId || state.accountId !== tenantId) return null;
+  if (!state.ipClientId || state.accountId !== accountId) return null;
   return { state, version };
 }
 
@@ -82,8 +82,8 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
     const body = await c.req.json<{ label?: string }>().catch(() => ({}) as { label?: string });
     const label = body.label?.trim() || "Unnamed device";
 
-    const account = await deps.accountService.getState(auth.tenantId);
-    const activeCount = await countActiveIpClients(deps.eventStore, auth.tenantId);
+    const account = await deps.accountService.getState(auth.accountId);
+    const activeCount = await countActiveIpClients(deps.eventStore, auth.accountId);
     if (activeCount >= account.deviceLimit) {
       return c.json({ error: "device_limit_reached", limit: account.deviceLimit }, 409);
     }
@@ -92,7 +92,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
     const { secret, hash } = generateCredential();
     const data: IpClientRegisteredData = {
       ipClientId,
-      accountId: auth.tenantId,
+      accountId: auth.accountId,
       label,
       credentialHash: hash,
       registeredAt: new Date().toISOString(),
@@ -103,7 +103,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: 1,
       eventName: IpClientEventName.Registered,
       type: built.type,
@@ -112,20 +112,20 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       data: built.data,
     });
 
-    await refreshProjection(deps, auth.tenantId, ipClientId);
+    await refreshProjection(deps, auth.accountId, ipClientId);
 
     return c.json({ ipClientId, label, reportingCredential: { username: ipClientId, password: secret } }, 201);
   });
 
   router.get("/", async (c) => {
     const auth = getAuth(c);
-    const items = await listIpClientsProjection(deps.redis, deps.eventStore, auth.tenantId);
+    const items = await listIpClientsProjection(deps.redis, deps.eventStore, auth.accountId);
     return c.json({ items });
   });
 
   router.get("/:id", async (c) => {
     const auth = getAuth(c);
-    const owned = await loadOwnedIpClient(deps, auth.tenantId, c.req.param("id"));
+    const owned = await loadOwnedIpClient(deps, auth.accountId, c.req.param("id"));
     if (!owned) return c.json({ error: "not found" }, 404);
     const { state } = owned;
     return c.json({
@@ -141,7 +141,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
   router.post("/:id/enable", async (c) => {
     const auth = getAuth(c);
     const ipClientId = c.req.param("id");
-    const owned = await loadOwnedIpClient(deps, auth.tenantId, ipClientId);
+    const owned = await loadOwnedIpClient(deps, auth.accountId, ipClientId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "decommissioned") {
       return c.json({ error: "cannot enable a decommissioned IP Client" }, 409);
@@ -153,7 +153,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: IpClientEventName.Enabled,
       type: built.type,
@@ -161,14 +161,14 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, ipClientId);
+    await refreshProjection(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, status: "enabled" });
   });
 
   router.post("/:id/disable", async (c) => {
     const auth = getAuth(c);
     const ipClientId = c.req.param("id");
-    const owned = await loadOwnedIpClient(deps, auth.tenantId, ipClientId);
+    const owned = await loadOwnedIpClient(deps, auth.accountId, ipClientId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "decommissioned") {
       return c.json({ error: "cannot disable a decommissioned IP Client" }, 409);
@@ -180,7 +180,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: IpClientEventName.Disabled,
       type: built.type,
@@ -188,14 +188,14 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, ipClientId);
+    await refreshProjection(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, status: "disabled" });
   });
 
   router.post("/:id/rotate-credential", async (c) => {
     const auth = getAuth(c);
     const ipClientId = c.req.param("id");
-    const owned = await loadOwnedIpClient(deps, auth.tenantId, ipClientId);
+    const owned = await loadOwnedIpClient(deps, auth.accountId, ipClientId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "decommissioned") {
       return c.json({ error: "cannot rotate the credential of a decommissioned IP Client" }, 409);
@@ -208,7 +208,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: IpClientEventName.CredentialRotated,
       type: built.type,
@@ -222,7 +222,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
   router.put("/:id/notification-preference", async (c) => {
     const auth = getAuth(c);
     const ipClientId = c.req.param("id");
-    const owned = await loadOwnedIpClient(deps, auth.tenantId, ipClientId);
+    const owned = await loadOwnedIpClient(deps, auth.accountId, ipClientId);
     if (!owned) return c.json({ error: "not found" }, 404);
 
     const body = await c.req.json<{ preference?: NotificationPreference }>().catch(() => ({}) as Record<string, never>);
@@ -242,7 +242,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: IpClientEventName.NotificationPreferenceSet,
       type: built.type,
@@ -250,14 +250,14 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, ipClientId);
+    await refreshProjection(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, notificationPreference: body.preference });
   });
 
   router.delete("/:id", async (c) => {
     const auth = getAuth(c);
     const ipClientId = c.req.param("id");
-    const owned = await loadOwnedIpClient(deps, auth.tenantId, ipClientId);
+    const owned = await loadOwnedIpClient(deps, auth.accountId, ipClientId);
     if (!owned) return c.json({ error: "not found" }, 404);
     if (owned.state.status === "decommissioned") {
       return c.json({ ipClientId, status: "decommissioned" });
@@ -269,7 +269,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       id: built.id,
       aggregateType: IP_CLIENT_AGGREGATE_TYPE,
       aggregateId: ipClientId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: owned.version + 1,
       eventName: IpClientEventName.Decommissioned,
       type: built.type,
@@ -277,7 +277,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       time: built.time,
       data: built.data,
     });
-    await refreshProjection(deps, auth.tenantId, ipClientId);
+    await refreshProjection(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, status: "decommissioned" });
   });
 

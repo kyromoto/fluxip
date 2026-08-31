@@ -19,7 +19,7 @@ export function createAdminAccountsRoutes(deps: AdminAccountsRouteDeps): Hono {
       return c.json({ error: "newLimit must be a non-negative integer" }, 400);
     }
 
-    const updated = await deps.accountService.overrideDeviceLimit(accountId, body.newLimit, auth.tenantId);
+    const updated = await deps.accountService.overrideDeviceLimit(accountId, body.newLimit, auth.accountId);
     if (!updated) {
       return c.json({ error: "account not found" }, 404);
     }

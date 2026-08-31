@@ -32,8 +32,8 @@ describe("Log sink failure isolation (User Story 3, FR-010/SC-006)", () => {
       append: () => Promise.resolve({} as never),
       readStream: () => Promise.resolve([]),
       listAggregateIds: () => Promise.resolve([]),
-      resolveTenantId: () => Promise.resolve("test-tenant"),
-      deleteTenant: () => Promise.resolve(),
+      resolveAccountId: () => Promise.resolve("test-account"),
+      deleteAccount: () => Promise.resolve(),
     };
     // loadAggregate replays readStream (returns []) -> initial state has no credentialHash -> badauth.
     // The point isn't the specific outcome; it's that trigger.ts's own "trigger report received"

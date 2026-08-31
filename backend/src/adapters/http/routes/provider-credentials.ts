@@ -25,10 +25,10 @@ export interface ProviderCredentialsRouteDeps {
   eventStore: EventStore;
 }
 
-/** Every active credential entry for a tenant, via aggregate replay (research.md §4/§8 — small scale, no projection). */
-async function listActiveCredentials(deps: ProviderCredentialsRouteDeps, tenantId: string): Promise<ProviderCredentialState[]> {
+/** Every active credential entry for an account, via aggregate replay (research.md §4/§8 — small scale, no projection). */
+async function listActiveCredentials(deps: ProviderCredentialsRouteDeps, accountId: string): Promise<ProviderCredentialState[]> {
   const ids = await deps.eventStore.listAggregateIds({
-    tenantId,
+    accountId,
     aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
   });
 
@@ -36,7 +36,7 @@ async function listActiveCredentials(deps: ProviderCredentialsRouteDeps, tenantI
   for (const id of ids) {
     const { state } = await loadAggregate(
       deps.eventStore,
-      { tenantId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: id },
+      { accountId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: id },
       initialProviderCredentialState,
       providerCredentialReducer,
     );
@@ -58,7 +58,7 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       return c.json({ error: "provider, label, and secret are required" }, 400);
     }
 
-    const existing = await listActiveCredentials(deps, auth.tenantId);
+    const existing = await listActiveCredentials(deps, auth.accountId);
     const normalizedLabel = body.label.trim().toLowerCase();
     if (existing.some((state) => state.label.trim().toLowerCase() === normalizedLabel)) {
       return c.json({ error: "label already in use" }, 409);
@@ -67,7 +67,7 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
     const credentialId = ulid();
     const data: ProviderCredentialStoredData = {
       credentialId,
-      accountId: auth.tenantId,
+      accountId: auth.accountId,
       provider: body.provider,
       label: body.label,
       encryptedSecret: encryptSecret(body.secret, deps.config.credentialEncryptionKey),
@@ -85,7 +85,7 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       id: built.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: 1,
       eventName: ProviderCredentialEventName.Stored,
       type: built.type,
@@ -99,7 +99,7 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
 
   router.get("/", async (c) => {
     const auth = getAuth(c);
-    const states = await listActiveCredentials(deps, auth.tenantId);
+    const states = await listActiveCredentials(deps, auth.accountId);
     const items = states.map((state) => ({
       credentialId: state.credentialId,
       provider: state.provider,
@@ -115,23 +115,23 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
 
     const { state, version } = await loadAggregate(
       deps.eventStore,
-      { tenantId: auth.tenantId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: credentialId },
+      { accountId: auth.accountId, aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE, aggregateId: credentialId },
       initialProviderCredentialState,
       providerCredentialReducer,
     );
-    if (!state.credentialId || state.accountId !== auth.tenantId || state.status !== "active") {
+    if (!state.credentialId || state.accountId !== auth.accountId || state.status !== "active") {
       return c.json({ error: "not found" }, 404);
     }
 
     const actionIds = await deps.eventStore.listAggregateIds({
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       aggregateType: ACTION_AGGREGATE_TYPE,
     });
     const usedBy: { actionId: string; ipClientId: string; zone: string; recordName: string }[] = [];
     for (const actionId of actionIds) {
       const { state: actionState } = await loadAggregate(
         deps.eventStore,
-        { tenantId: auth.tenantId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+        { accountId: auth.accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
         initialActionState,
         actionReducer,
       );
@@ -159,7 +159,7 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       id: built.id,
       aggregateType: PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
       aggregateId: credentialId,
-      tenantId: auth.tenantId,
+      accountId: auth.accountId,
       expectedSequenceNumber: version + 1,
       eventName: ProviderCredentialEventName.Revoked,
       type: built.type,

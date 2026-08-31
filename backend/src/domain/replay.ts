@@ -18,7 +18,7 @@ const replayEventsTotal = new Counter({
 });
 
 export interface LoadAggregateParams {
-  tenantId: string;
+  accountId: string;
   aggregateType: string;
   aggregateId: string;
 }

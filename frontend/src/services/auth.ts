@@ -16,7 +16,7 @@ export const logtoClient = new LogtoClient({
   endpoint: endpoint ?? "",
   appId: appId ?? "",
   // The SDK's default reserved scopes are openid + offline_access + profile.
-  // This backend only ever reads `sub` (as tenant_id) and an optional `roles`
+  // This backend only ever reads `sub` (as account_id) and an optional `roles`
   // claim — never `profile` — and this Logto instance doesn't allow the
   // `profile` scope for this application, so request only what's needed.
   includeReservedScopes: false,

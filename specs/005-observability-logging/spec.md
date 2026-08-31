@@ -80,7 +80,7 @@ An operator configuring where each log goes (e.g., routing the Access Log to a d
 
 - What happens when the logging mechanism itself fails or its destination is temporarily unavailable? The underlying request handling or Action execution MUST NOT fail or be blocked because of it — logging is best-effort with respect to the business operation it's describing.
 - What happens when a single trigger event fans out to multiple Actions, some succeeding and some failing? Every Action's log entry (success or failure) carries the same correlation identifier back to the originating trigger event, so the full fan-out remains traceable as one operation.
-- What happens when an HTTP request never reaches authenticated application logic (e.g., rejected at authentication)? It still produces an Access Log entry; the absence of tenant/account context on that entry is not an error.
+- What happens when an HTTP request never reaches authenticated application logic (e.g., rejected at authentication)? It still produces an Access Log entry; the absence of account context on that entry is not an error.
 - What happens when a log entry would otherwise include a secret value (e.g., a Provider Credential's token, a Trigger Device's reporting credential, an Authorization header)? That value MUST NOT appear in plaintext in either log stream.
 - What happens when a manual re-run of a failed Action is triggered (per the core specification's existing manual re-run capability)? It is logged the same way as an automatic execution, but as its own operation — its Application Log entries carry a correlation identifier rooted at the manual request itself, not the original trigger event's, consistent with the core specification's existing causation model for manual executions.
 

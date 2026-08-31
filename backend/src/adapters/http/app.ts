@@ -58,7 +58,7 @@ export function createApp(deps: AppDependencies): CreatedApp {
   api.use("*", oidcAuthMiddleware(deps.config));
   api.use("*", async (c, next) => {
     const auth = getAuth(c);
-    await deps.accountService.ensureProvisioned(auth.tenantId);
+    await deps.accountService.ensureProvisioned(auth.accountId);
     await next();
   });
 

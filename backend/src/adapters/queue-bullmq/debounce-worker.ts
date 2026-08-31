@@ -39,11 +39,11 @@ export function createDebounceWorker(deps: DebounceWorkerDeps): Worker<DebounceJ
     QUEUE_NAMES.debounce,
     async (job: Job<DebounceJobData>) => {
       try {
-        const { tenantId, ipClientId } = job.data;
+        const { accountId, ipClientId } = job.data;
 
         const { state, events, version } = await loadAggregate(
           deps.eventStore,
-          { tenantId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+          { accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
           initialIpClientState,
           ipClientReducer,
         );
@@ -75,7 +75,7 @@ export function createDebounceWorker(deps: DebounceWorkerDeps): Worker<DebounceJ
             id: built.id,
             aggregateType: IP_CLIENT_AGGREGATE_TYPE,
             aggregateId: ipClientId,
-            tenantId,
+            accountId,
             expectedSequenceNumber: version + 1,
             eventName: IpClientEventName.IpChanged,
             type: built.type,
@@ -85,7 +85,7 @@ export function createDebounceWorker(deps: DebounceWorkerDeps): Worker<DebounceJ
           });
 
           logger.info("IP change confirmed for {ipClientId}", {
-            tenantId,
+            accountId,
             ipClientId,
             previousIPv4: changedData.previousIPv4,
             newIPv4: changedData.newIPv4,
@@ -94,10 +94,10 @@ export function createDebounceWorker(deps: DebounceWorkerDeps): Worker<DebounceJ
           });
 
           const updatedState = ipClientReducer(state, causationEvent);
-          await upsertIpClientProjection(deps.redis, tenantId, updatedState);
+          await upsertIpClientProjection(deps.redis, accountId, updatedState);
 
           await fanOutActionExecutions(deps.eventStore, deps.actionExecutionQueue, {
-            tenantId,
+            accountId,
             ipClientId,
             causationEventId: causationEvent.id,
             triggeredBy: "ip_change",
