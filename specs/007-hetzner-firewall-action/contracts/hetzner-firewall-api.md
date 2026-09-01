@@ -5,7 +5,7 @@ The exact upstream surface this feature integrates with — analogous to how 001
 | Method & Path | Used for | Notes |
 |---|---|---|
 | `GET /firewalls/{id}` | Reading the current rule set (FR-008/FR-018) | Response's `rules[]` items: `{ direction, protocol, port?, source_ips?, destination_ips?, description? }`. `source_ips` applies when `direction: "in"`, `destination_ips` when `direction: "out"` — the executor reads/writes whichever field matches the configured `direction` |
-| `POST /firewalls/{id}/actions/set_firewall_rules` | Writing the full rule set back (FR-005/FR-006) | Body: `{ rules: [...] }` — **replaces the entire rule array in one call; there is no partial-patch endpoint.** This is why every write is a locked read-modify-write cycle (research.md §2), never a targeted single-rule update |
+| `POST /firewalls/{id}/actions/set_rules` | Writing the full rule set back (FR-005/FR-006) | Body: `{ rules: [...] }` — **replaces the entire rule array in one call; there is no partial-patch endpoint.** This is why every write is a locked read-modify-write cycle (research.md §2), never a targeted single-rule update |
 
 ## Address format
 

@@ -22,7 +22,7 @@ export interface FirewallLockHandle {
 
 /**
  * Advisory lock guarding the locked read-modify-write cycle any firewall rule mutation needs
- * (set_firewall_rules replaces the whole rule array in one call — research.md §2). Scoped by
+ * (set_rules replaces the whole rule array in one call — research.md §2). Scoped by
  * BOTH accountId and firewallId so two different accounts' credentials can never contend on (or
  * be confused by) the same numeric Hetzner firewall ID. Only serializes FluxIP-initiated writes
  * against each other (spec.md Clarifications/Assumptions) — not a guard against a concurrent

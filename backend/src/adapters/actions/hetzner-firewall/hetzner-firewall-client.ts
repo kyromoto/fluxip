@@ -30,13 +30,13 @@ export async function setFirewallRules(
   rules: HetznerFirewallRule[],
 ): Promise<void> {
   await requestJson(
-    `${HETZNER_API_BASE}/firewalls/${firewallId}/actions/set_firewall_rules`,
+    `${HETZNER_API_BASE}/firewalls/${firewallId}/actions/set_rules`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ rules }),
     },
-    "the set_firewall_rules update",
+    "the set_rules update",
   );
 }
 
