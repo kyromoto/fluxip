@@ -65,3 +65,34 @@ test("creates a credential inline from the wizard's empty state and resumes the 
 
   await expect(page.getByText("resumed.example.com")).toBeVisible();
 });
+
+/**
+ * User Story 1 (007-hetzner-firewall-action spec.md) — the second Action type is selectable
+ * and configurable through the same wizard, without redesigning the flow (FR-015); needs an
+ * authenticated session AND a Trigger Device with a Provider Credential already available
+ * (see tests/e2e/README.md).
+ */
+test("configures a Firewall Rule Update Action end-to-end via the guided flow", async ({ page }) => {
+  await page.goto("/ip-clients");
+  await page.getByRole("link").first().click();
+
+  await page.getByRole("button", { name: /add.*action/i }).click();
+  await expect(page.getByText("What should happen when the IP changes?")).toBeVisible();
+  await page.getByText("Hetzner Cloud Firewall Rule Update").click();
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("Which firewall rule should we update?")).toBeVisible();
+  await page.getByRole("button", { name: /select a credential/i }).click();
+  await page.getByRole("option").first().click();
+  await page.getByLabel("Hetzner firewall ID").fill("42");
+  await page.getByLabel("Rule description").fill("SSH");
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("Which address(es) should this keep updated?")).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("Review")).toBeVisible();
+  await page.getByRole("button", { name: "Attach action" }).click();
+
+  await expect(page.getByText("SSH")).toBeVisible();
+});

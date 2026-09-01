@@ -14,19 +14,24 @@ interface ProviderCredentialSummary {
   label: string;
 }
 
-/** This step only ever renders for hetzner_cloud_dns_update (ActionWizard's TargetStep dispatcher). */
+/** Same Hetzner Provider Credential type the DNS Action already uses (FR-012). */
 const REQUIRED_PROVIDER = "hetzner";
+
+const DIRECTIONS = ["in", "out"] as const;
+const PROTOCOLS = ["tcp", "udp", "icmp", "esp", "ah", "gre"] as const;
 
 async function fetchCredentials(): Promise<ProviderCredentialSummary[]> {
   const res = await api.get<{ items: ProviderCredentialSummary[] }>("/provider-credentials");
   return res.items;
 }
 
-export const DnsTargetStep: Component<WizardStepComponentProps<ActionWizardData>> = (props) => {
+/** Manual input fields for firewallId + rule selector (Assumptions: no live Hetzner picker in v1). */
+export const FirewallRuleTargetStep: Component<WizardStepComponentProps<ActionWizardData>> = (props) => {
   const [credentials, { refetch }] = createResource(fetchCredentials);
   const [dialogOpen, setDialogOpen] = createSignal(false);
 
   const matchingCredentials = () => (credentials() ?? []).filter((c) => c.provider === REQUIRED_PROVIDER);
+  const portApplies = () => props.data.protocol === "tcp" || props.data.protocol === "udp";
 
   async function handleCreated(credential: CreatedCredential) {
     setDialogOpen(false);
@@ -36,7 +41,7 @@ export const DnsTargetStep: Component<WizardStepComponentProps<ActionWizardData>
 
   return (
     <div class="space-y-4">
-      <h2 class="text-lg font-semibold">Which DNS record should we update?</h2>
+      <h2 class="text-lg font-semibold">Which firewall rule should we update?</h2>
 
       <div class="space-y-1">
         <div class="flex items-center justify-between">
@@ -77,15 +82,56 @@ export const DnsTargetStep: Component<WizardStepComponentProps<ActionWizardData>
         </Show>
       </div>
 
-      <TextField value={props.data.zone} onChange={(value) => props.updateData({ zone: value })}>
-        <TextFieldLabel>Hetzner zone ID</TextFieldLabel>
-        <TextFieldInput />
+      <TextField value={props.data.firewallId} onChange={(value) => props.updateData({ firewallId: value })}>
+        <TextFieldLabel>Hetzner firewall ID</TextFieldLabel>
+        <TextFieldInput type="number" />
       </TextField>
 
-      <TextField value={props.data.recordName} onChange={(value) => props.updateData({ recordName: value })}>
-        <TextFieldLabel>Record name</TextFieldLabel>
+      <div class="space-y-1">
+        <label class="text-sm font-medium">Direction</label>
+        <Select<(typeof DIRECTIONS)[number]>
+          options={[...DIRECTIONS]}
+          value={props.data.direction}
+          onChange={(value) => value && props.updateData({ direction: value })}
+          itemComponent={(itemProps) => <SelectItem item={itemProps.item}>{itemProps.item.rawValue}</SelectItem>}
+        >
+          <SelectTrigger>
+            <SelectValue<(typeof DIRECTIONS)[number]>>{(state) => state.selectedOption()}</SelectValue>
+          </SelectTrigger>
+          <SelectContent />
+        </Select>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-sm font-medium">Protocol</label>
+        <Select<(typeof PROTOCOLS)[number]>
+          options={[...PROTOCOLS]}
+          value={props.data.protocol}
+          onChange={(value) => value && props.updateData({ protocol: value, port: portApplies() ? props.data.port : "" })}
+          itemComponent={(itemProps) => <SelectItem item={itemProps.item}>{itemProps.item.rawValue}</SelectItem>}
+        >
+          <SelectTrigger>
+            <SelectValue<(typeof PROTOCOLS)[number]>>{(state) => state.selectedOption()}</SelectValue>
+          </SelectTrigger>
+          <SelectContent />
+        </Select>
+      </div>
+
+      <Show when={portApplies()}>
+        <TextField value={props.data.port} onChange={(value) => props.updateData({ port: value })}>
+          <TextFieldLabel>Port</TextFieldLabel>
+          <TextFieldInput />
+        </TextField>
+      </Show>
+
+      <TextField value={props.data.description} onChange={(value) => props.updateData({ description: value })}>
+        <TextFieldLabel>Rule description</TextFieldLabel>
         <TextFieldInput />
       </TextField>
+      <p class="text-sm text-muted-foreground">
+        Must match the description of an existing rule on this firewall exactly — direction, protocol, port, and
+        description together must identify exactly one rule (FR-003).
+      </p>
 
       <CredentialFormDialog open={dialogOpen()} onOpenChange={setDialogOpen} onCreated={(c) => void handleCreated(c)} />
     </div>

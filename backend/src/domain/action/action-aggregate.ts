@@ -3,6 +3,7 @@ import {
   ActionEventName,
   type ActionAttachedData,
   type ActionConfig,
+  type ActionFirewallRuleAppliedData,
   type ActionReconfiguredData,
   type AddressFamily,
 } from "./events.js";
@@ -15,6 +16,13 @@ export interface ActionState {
   addressFamilies: AddressFamily[];
   config: ActionConfig | null;
   status: "enabled" | "disabled" | "detached";
+  /**
+   * The CIDR this Action itself last successfully wrote into its target firewall rule, per
+   * address family (data-model.md). Empty for a DNS Action, and for a Firewall Rule Update
+   * Action that has never successfully executed. Advisory bookkeeping only — never a source
+   * of truth for what's actually in Hetzner (see spec.md Clarifications/Assumptions).
+   */
+  firewallOwnedEntries: { ipv4?: string; ipv6?: string };
 }
 
 export const initialActionState: ActionState = {
@@ -25,6 +33,7 @@ export const initialActionState: ActionState = {
   addressFamilies: [],
   config: null,
   status: "enabled",
+  firewallOwnedEntries: {},
 };
 
 export function actionReducer(state: ActionState, event: StoredEvent): ActionState {
@@ -56,6 +65,16 @@ export function actionReducer(state: ActionState, event: StoredEvent): ActionSta
       return { ...state, status: "disabled" };
     case ActionEventName.Detached:
       return { ...state, status: "detached" };
+    case ActionEventName.FirewallRuleApplied: {
+      const data = event.data as ActionFirewallRuleAppliedData;
+      return {
+        ...state,
+        firewallOwnedEntries: {
+          ipv4: data.ipv4 ?? state.firewallOwnedEntries.ipv4,
+          ipv6: data.ipv6 ?? state.firewallOwnedEntries.ipv6,
+        },
+      };
+    }
     default:
       return state;
   }

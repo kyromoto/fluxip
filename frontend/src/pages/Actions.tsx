@@ -16,13 +16,28 @@ interface IpClientSummary {
   status: "enabled" | "disabled" | "decommissioned";
 }
 
+type ActionConfigSummary =
+  | { providerCredentialId: string; zone: string; recordName: string }
+  | { providerCredentialId: string; firewallId: number; direction: string; protocol: string; port?: string; description: string };
+
 interface ActionSummary {
   actionId: string;
   ipClientId: string;
   type: string;
   addressFamilies: AddressFamily[];
-  config: { providerCredentialId: string; zone: string; recordName: string } | null;
+  config: ActionConfigSummary | null;
   status: "enabled" | "disabled" | "detached";
+}
+
+const ACTION_TYPE_LABEL: Record<string, string> = {
+  hetzner_cloud_dns_update: "Hetzner Cloud DNS Update",
+  hetzner_cloud_firewall_rule_update: "Hetzner Cloud Firewall Rule Update",
+};
+
+function isFirewallConfig(
+  config: ActionConfigSummary | null,
+): config is { providerCredentialId: string; firewallId: number; direction: string; protocol: string; port?: string; description: string } {
+  return !!config && "firewallId" in config;
 }
 
 const STATUS_LABEL: Record<ActionSummary["status"], string> = {
@@ -41,11 +56,19 @@ function formatAddressFamilies(families: AddressFamily[]): string {
 }
 
 function toExistingAction(action: ActionSummary): ExistingAction {
+  const firewall = isFirewallConfig(action.config) ? action.config : null;
+  const dns = !isFirewallConfig(action.config) ? action.config : null;
   return {
     actionId: action.actionId,
+    type: action.type as ExistingAction["type"],
     providerCredentialId: action.config?.providerCredentialId ?? "",
-    zone: action.config?.zone ?? "",
-    recordName: action.config?.recordName ?? "",
+    zone: dns?.zone ?? "",
+    recordName: dns?.recordName ?? "",
+    firewallId: firewall ? String(firewall.firewallId) : "",
+    direction: (firewall?.direction as ExistingAction["direction"]) ?? "in",
+    protocol: (firewall?.protocol as ExistingAction["protocol"]) ?? "tcp",
+    port: firewall?.port ?? "",
+    description: firewall?.description ?? "",
     ipv4: action.addressFamilies.includes("ipv4"),
     ipv6: action.addressFamilies.includes("ipv6"),
   };
@@ -192,18 +215,37 @@ export default function Actions() {
           >
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <For each={items()}>
-                {(action) => (
+                {(action) => {
+                  const firewallConfig = () => (isFirewallConfig(action.config) ? action.config : null);
+                  const dnsConfig = () => (!isFirewallConfig(action.config) ? action.config : null);
+                  return (
                   <Card>
                     <CardContent class="space-y-3 p-4">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="font-medium">Hetzner Cloud DNS Update</span>
+                        <span class="font-medium">{ACTION_TYPE_LABEL[action.type] ?? action.type}</span>
                         <span class="text-xs text-muted-foreground">{STATUS_LABEL[action.status]}</span>
                       </div>
                       <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                        <dt class="text-muted-foreground">Zone</dt>
-                        <dd>{action.config?.zone}</dd>
-                        <dt class="text-muted-foreground">Record</dt>
-                        <dd>{action.config?.recordName}</dd>
+                        <Show
+                          when={firewallConfig()}
+                          fallback={
+                            <>
+                              <dt class="text-muted-foreground">Zone</dt>
+                              <dd>{dnsConfig()?.zone}</dd>
+                              <dt class="text-muted-foreground">Record</dt>
+                              <dd>{dnsConfig()?.recordName}</dd>
+                            </>
+                          }
+                        >
+                          {(fw) => (
+                            <>
+                              <dt class="text-muted-foreground">Firewall</dt>
+                              <dd>{fw().firewallId}</dd>
+                              <dt class="text-muted-foreground">Rule</dt>
+                              <dd>{fw().description}</dd>
+                            </>
+                          )}
+                        </Show>
                         <dt class="text-muted-foreground">Families</dt>
                         <dd>{formatAddressFamilies(action.addressFamilies)}</dd>
                       </dl>
@@ -225,7 +267,8 @@ export default function Actions() {
                       </Show>
                     </CardContent>
                   </Card>
-                )}
+                  );
+                }}
               </For>
             </div>
           </Show>

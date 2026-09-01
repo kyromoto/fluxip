@@ -11,6 +11,7 @@ import {
 import { createDebounceWorker } from "./adapters/queue-bullmq/debounce-worker.js";
 import { createActionExecutionWorker } from "./adapters/queue-bullmq/action-execution-worker.js";
 import { HetznerDnsExecutor } from "./adapters/actions/hetzner-dns/hetzner-dns-executor.js";
+import { HetznerFirewallExecutor } from "./adapters/actions/hetzner-firewall/hetzner-firewall-executor.js";
 import { EmailNotifier } from "./adapters/notifications-email/email-notifier.js";
 import { loadConfig } from "./config/env.js";
 import { AccountClosureService } from "./domain/account/account-closure-service.js";
@@ -43,13 +44,17 @@ async function main(): Promise<void> {
   });
 
   const hetznerDnsExecutor = new HetznerDnsExecutor();
+  const hetznerFirewallExecutor = new HetznerFirewallExecutor(redis);
   const emailNotifier = new EmailNotifier(config);
   const debounceWorker = createDebounceWorker({ config, eventStore, redis, actionExecutionQueue });
   const actionExecutionWorker = createActionExecutionWorker({
     config,
     eventStore,
     redis,
-    executors: { [hetznerDnsExecutor.type]: hetznerDnsExecutor },
+    executors: {
+      [hetznerDnsExecutor.type]: hetznerDnsExecutor,
+      [hetznerFirewallExecutor.type]: hetznerFirewallExecutor,
+    },
     notificationChannels: { [emailNotifier.type]: emailNotifier },
   });
 

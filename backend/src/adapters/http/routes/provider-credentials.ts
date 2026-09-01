@@ -4,7 +4,12 @@ import type { Config } from "../../../config/env.js";
 import { buildDomainEvent } from "../../../domain/cloud-events.js";
 import { loadAggregate } from "../../../domain/replay.js";
 import { actionReducer, initialActionState } from "../../../domain/action/action-aggregate.js";
-import { ACTION_AGGREGATE_TYPE } from "../../../domain/action/events.js";
+import {
+  ACTION_AGGREGATE_TYPE,
+  HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE,
+  type UpdateDnsRecordConfig,
+  type UpdateFirewallRuleConfig,
+} from "../../../domain/action/events.js";
 import {
   PROVIDER_CREDENTIAL_AGGREGATE_TYPE,
   ProviderCredentialEventName,
@@ -127,7 +132,14 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       accountId: auth.accountId,
       aggregateType: ACTION_AGGREGATE_TYPE,
     });
-    const usedBy: { actionId: string; ipClientId: string; zone: string; recordName: string }[] = [];
+    const usedBy: {
+      actionId: string;
+      ipClientId: string;
+      zone?: string;
+      recordName?: string;
+      firewallId?: number;
+      description?: string;
+    }[] = [];
     for (const actionId of actionIds) {
       const { state: actionState } = await loadAggregate(
         deps.eventStore,
@@ -141,12 +153,17 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
         actionState.actionId &&
         actionState.ipClientId
       ) {
-        usedBy.push({
-          actionId: actionState.actionId,
-          ipClientId: actionState.ipClientId,
-          zone: actionState.config.zone,
-          recordName: actionState.config.recordName,
-        });
+        const target =
+          actionState.type === HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE
+            ? {
+                firewallId: (actionState.config as UpdateFirewallRuleConfig).firewallId,
+                description: (actionState.config as UpdateFirewallRuleConfig).description,
+              }
+            : {
+                zone: (actionState.config as UpdateDnsRecordConfig).zone,
+                recordName: (actionState.config as UpdateDnsRecordConfig).recordName,
+              };
+        usedBy.push({ actionId: actionState.actionId, ipClientId: actionState.ipClientId, ...target });
       }
     }
     if (usedBy.length > 0) {
