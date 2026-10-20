@@ -11,6 +11,13 @@ interface IpClientSummary {
 interface ExecutionEntry {
   executionId: string;
   actionId: string;
+  action: {
+    type: string | null;
+    zone?: string;
+    recordName?: string;
+    firewallId?: number;
+    description?: string;
+  };
   status: "running" | "succeeded" | "failed";
   attempt: number;
   error: string | null;
@@ -36,6 +43,22 @@ const STATUS_LABEL: Record<ExecutionEntry["status"], string> = {
   succeeded: "Succeeded",
   failed: "Failed",
 };
+
+const ACTION_TYPE_LABEL: Record<string, string> = {
+  hetzner_cloud_dns_update: "Hetzner Cloud DNS Update",
+  hetzner_cloud_firewall_rule_update: "Hetzner Cloud Firewall Rule Update",
+};
+
+function actionLabel(action: ExecutionEntry["action"]): string {
+  const type = action.type ? (ACTION_TYPE_LABEL[action.type] ?? action.type) : "Action";
+  const target =
+    action.zone && action.recordName
+      ? `${action.recordName}.${action.zone}`
+      : action.firewallId !== undefined
+        ? `Firewall ${action.firewallId}${action.description ? ` · ${action.description}` : ""}`
+        : null;
+  return target ? `${type} — ${target}` : type;
+}
 
 function executionTime(execution: ExecutionEntry): string {
   return execution.completedAt ?? execution.failedAt ?? execution.startedAt ?? "—";
@@ -123,6 +146,7 @@ export default function DeviceHistory() {
                             {(execution) => (
                               <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <span class="font-mono text-xs text-muted-foreground">{executionTime(execution)}</span>
+                                <span class="font-medium">{actionLabel(execution.action)}</span>
                                 <span>{STATUS_LABEL[execution.status]}</span>
                                 <Show when={execution.attempt > 1}>
                                   <span class="text-xs text-muted-foreground">attempt {execution.attempt}</span>

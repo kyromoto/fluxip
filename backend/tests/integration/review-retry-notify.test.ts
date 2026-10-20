@@ -235,5 +235,6 @@ describe("Review, retry, and notification (User Story 3)", () => {
     const history = (await historyRes.json()) as { items: { executions: unknown[] }[] };
     expect(history.items.length).toBeGreaterThanOrEqual(2);
     expect(history.items.every((h) => h.executions.length >= 1)).toBe(true);
+    expect(history.items[0]!.executions[0]).toHaveProperty("action.type");
   }, 20000);
 });

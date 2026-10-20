@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { actionReducer, initialActionState } from "../../../domain/action/action-aggregate.js";
+import { actionReducer, initialActionState, type ActionState } from "../../../domain/action/action-aggregate.js";
 import { ACTION_AGGREGATE_TYPE } from "../../../domain/action/events.js";
 import {
   actionExecutionReducer,
@@ -15,6 +15,18 @@ import { getAuth } from "../../auth-logto/oidc-middleware.js";
 
 export interface IpClientHistoryRouteDeps {
   eventStore: EventStore;
+}
+
+/** Non-secret summary of what an Action targets, so the history can say which Action ran. */
+function describeAction(state: ActionState | undefined) {
+  const config = (state?.config ?? {}) as Record<string, unknown>;
+  return {
+    type: state?.type ?? null,
+    zone: typeof config.zone === "string" ? config.zone : undefined,
+    recordName: typeof config.recordName === "string" ? config.recordName : undefined,
+    firewallId: typeof config.firewallId === "number" ? config.firewallId : undefined,
+    description: typeof config.description === "string" ? config.description : undefined,
+  };
 }
 
 export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hono {
@@ -40,7 +52,7 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
       accountId: auth.accountId,
       aggregateType: ACTION_AGGREGATE_TYPE,
     });
-    const relevantActionIds = new Set<string>();
+    const relevantActions = new Map<string, ActionState>();
     for (const actionId of actionIds) {
       const { state } = await loadAggregate(
         deps.eventStore,
@@ -48,7 +60,7 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
         initialActionState,
         actionReducer,
       );
-      if (state.ipClientId === ipClientId) relevantActionIds.add(actionId);
+      if (state.ipClientId === ipClientId) relevantActions.set(actionId, state);
     }
 
     const executionIds = await deps.eventStore.listAggregateIds({
@@ -63,7 +75,7 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
         initialActionExecutionState,
         actionExecutionReducer,
       );
-      if (state.actionId && relevantActionIds.has(state.actionId)) {
+      if (state.actionId && relevantActions.has(state.actionId)) {
         executions.push(state);
       }
     }
@@ -77,6 +89,7 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
         .map((ex) => ({
           executionId: ex.executionId,
           actionId: ex.actionId,
+          action: describeAction(ex.actionId ? relevantActions.get(ex.actionId) : undefined),
           status: ex.status,
           attempt: ex.attempt,
           error: ex.error,
