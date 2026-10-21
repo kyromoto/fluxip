@@ -36,6 +36,115 @@ function mockApi(count: number) {
 const label = (n: number) => `change-${String(n).padStart(2, "0")}`;
 const shownTimes = () => screen.queryAllByText(/^change-\d\d$/).map((el) => el.textContent);
 
+function mockOneChangeWith(statuses: ("running" | "succeeded" | "failed")[]) {
+  mockedApi.get.mockImplementation(async (path: string) => {
+    if (path === "/ip-clients/dev-1") return { ipClientId: "dev-1", label: "Router" };
+    return {
+      items: [
+        {
+          ipChangedEventId: "e1",
+          time: "change-01",
+          data: { newIPv4: "203.0.113.1" },
+          executions: statuses.map((status, i) => ({
+            executionId: `x${i}`,
+            actionId: `a${i}`,
+            action: { type: "hetzner_cloud_dns_update", zone: "example.com", recordName: `host${i}` },
+            status,
+            attempt: 1,
+            error: status === "failed" ? "upstream rejected" : null,
+            startedAt: "start",
+            completedAt: status === "succeeded" ? `done-${i}` : null,
+            failedAt: status === "failed" ? `failed-${i}` : null,
+          })),
+        },
+      ],
+    };
+  });
+}
+
+describe("Device history address change", () => {
+  function mockChange(data: Record<string, string>) {
+    mockedApi.get.mockImplementation(async (path: string) => {
+      if (path === "/ip-clients/dev-1") return { ipClientId: "dev-1", label: "Router" };
+      return { items: [{ ipChangedEventId: "e1", time: "change-01", data, executions: [] }] };
+    });
+  }
+
+  it("draws a vertically centered arrow between the old and new address", async () => {
+    mockChange({ previousIPv4: "203.0.113.1", newIPv4: "203.0.113.2" });
+    render(() => <DeviceHistory />);
+    await screen.findByText("203.0.113.2");
+
+    const arrow = screen.getByTestId("address-arrow");
+    const row = arrow.parentElement!;
+    expect(row.className).toContain("items-center");
+    expect(arrow.parentElement!.parentElement!.className).toContain("items-center");
+    expect([...row.children].map((el) => el.textContent || "arrow")).toEqual(["203.0.113.1", "arrow", "203.0.113.2"]);
+    expect(row.getAttribute("title")).toBe("203.0.113.1 → 203.0.113.2");
+    expect(screen.queryByText(/→/)).toBeNull();
+  });
+
+  it("shows just the address, without an arrow, for a first report", async () => {
+    mockChange({ newIPv4: "203.0.113.2" });
+    render(() => <DeviceHistory />);
+    await screen.findByText("203.0.113.2");
+    expect(screen.queryByTestId("address-arrow")).toBeNull();
+  });
+
+  it("handles IPv4 and IPv6 changes on separate lines", async () => {
+    mockChange({ previousIPv4: "203.0.113.1", newIPv4: "203.0.113.2", previousIPv6: "2001:db8::1", newIPv6: "2001:db8::2" });
+    render(() => <DeviceHistory />);
+    await screen.findByText("2001:db8::2");
+    expect(screen.getAllByTestId("address-arrow")).toHaveLength(2);
+    expect(screen.getByText("IPv4")).toBeTruthy();
+    expect(screen.getByText("IPv6")).toBeTruthy();
+  });
+});
+
+describe("Device history status icons", () => {
+  it("shows a labelled icon per execution instead of the status text", async () => {
+    mockOneChangeWith(["succeeded", "failed", "running"]);
+    render(() => <DeviceHistory />);
+    await screen.findByText(/host0\.example\.com/);
+
+    const icons = screen.getAllByRole("img");
+    expect(icons.map((i) => i.getAttribute("data-status"))).toEqual(["succeeded", "failed", "running"]);
+    expect(icons.map((i) => i.getAttribute("title"))).toEqual(["Succeeded", "Failed", "In progress"]);
+    expect(icons.map((i) => i.getAttribute("aria-label"))).toEqual(["Succeeded", "Failed", "In progress"]);
+    // The words only live in the tooltip now, not as visible text.
+    expect(screen.queryByText("Succeeded")).toBeNull();
+    expect(screen.queryByText("Failed")).toBeNull();
+    expect(screen.queryByText("In progress")).toBeNull();
+  });
+
+  it("puts the icon between the date and the action text", async () => {
+    mockOneChangeWith(["failed"]);
+    render(() => <DeviceHistory />);
+    const action = await screen.findByText(/host0\.example\.com/);
+    const row = action.closest("li")!;
+    const children = [...row.children].map((el) => (el.matches("[role=img]") ? "icon" : (el.textContent ?? "")));
+    expect(children[0]).toBe("failed-0");
+    expect(children[1]).toBe("icon");
+    expect(children[2]).toMatch(/host0\.example\.com/);
+  });
+
+  it("colors success green, failure red and running amber", async () => {
+    mockOneChangeWith(["succeeded", "failed", "running"]);
+    render(() => <DeviceHistory />);
+    await screen.findByText(/host0\.example\.com/);
+    const colors = screen.getAllByRole("img").map((i) => i.querySelector("svg")!.getAttribute("class")!);
+    expect(colors[0]).toContain("text-green-600");
+    expect(colors[1]).toContain("text-destructive");
+    expect(colors[2]).toContain("text-amber-600");
+  });
+
+  it("keeps showing the error reason next to a failed execution", async () => {
+    mockOneChangeWith(["failed"]);
+    render(() => <DeviceHistory />);
+    await screen.findByText(/upstream rejected/);
+  });
+});
+
 describe("Device history pagination", () => {
   it("shows the newest 10 on page one by default", async () => {
     mockApi(25);
