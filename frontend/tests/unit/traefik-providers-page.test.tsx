@@ -37,12 +37,12 @@ function provider(overrides: Partial<TraefikProviderSummary> = {}): TraefikProvi
   };
 }
 
-describe("Traefik providers page", () => {
+describe("Agents page", () => {
   it("shows the empty state with a way to add the first provider", async () => {
     mockedApi.get.mockResolvedValueOnce({ items: [] });
     render(() => <TraefikProviders />);
-    await screen.findByText(/haven't added a Traefik provider yet/i);
-    expect(screen.getByRole("button", { name: "Add your first provider" })).toBeTruthy();
+    await screen.findByText(/haven't added an agent yet/i);
+    expect(screen.getByRole("button", { name: "Add your first agent" })).toBeTruthy();
   });
 
   it("shows state, last connection, applied version and agent version per provider (US6-1)", async () => {
@@ -114,7 +114,7 @@ describe("Traefik providers page", () => {
     confirmMock.mockReturnValue(true);
     mockedApi.delete.mockResolvedValueOnce(undefined);
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
-    await waitFor(() => expect(mockedApi.delete).toHaveBeenCalledWith("/traefik-providers/p1/tokens/t1"));
+    await waitFor(() => expect(mockedApi.delete).toHaveBeenCalledWith("/agents/p1/tokens/t1"));
   });
 
   it("shows a new token once and says both tokens work meanwhile (US7-1)", async () => {
@@ -126,6 +126,6 @@ describe("Traefik providers page", () => {
     fireEvent.click(screen.getByRole("button", { name: "New token" }));
     await screen.findByText("fxt_new-token-value");
     expect(screen.getByText(/old and the new token work/i)).toBeTruthy();
-    expect(mockedApi.post).toHaveBeenCalledWith("/traefik-providers/p1/tokens");
+    expect(mockedApi.post).toHaveBeenCalledWith("/agents/p1/tokens");
   });
 });

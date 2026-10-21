@@ -260,7 +260,7 @@ export default function Actions() {
                         <Show when={traefikConfig()}>
                           {(tc) => (
                             <>
-                              <dt class="text-muted-foreground">Provider</dt>
+                              <dt class="text-muted-foreground">Agent</dt>
                               <dd>{delivery()?.providerName ?? tc().traefikProviderId}</dd>
                               <dt class="text-muted-foreground">Group</dt>
                               <dd>{tc().group}</dd>

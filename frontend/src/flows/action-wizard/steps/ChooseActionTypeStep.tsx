@@ -15,7 +15,7 @@ const ACTION_TYPE_OPTIONS: { type: ActionType; title: string; description: strin
   },
   {
     type: "traefik_config_delivery",
-    title: "Traefik configuration",
+    title: "Traefik configuration (agent)",
     description: "Send this device's current address to a Traefik agent, for example to keep an IP allow-list up to date.",
   },
 ];

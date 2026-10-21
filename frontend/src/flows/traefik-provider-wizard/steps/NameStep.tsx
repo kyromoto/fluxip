@@ -5,9 +5,9 @@ import type { TraefikProviderWizardData } from "../TraefikProviderWizard";
 
 export const NameStep: Component<WizardStepComponentProps<TraefikProviderWizardData>> = (props) => (
   <div class="space-y-4">
-    <h2 class="text-lg font-semibold">Where does this Traefik run?</h2>
+    <h2 class="text-lg font-semibold">Where does this agent run?</h2>
     <p class="text-sm text-muted-foreground">
-      Each Traefik provider stands for one agent next to one Traefik, for example one location. Give it a name you will
+      Each agent runs next to one Traefik, for example at one location. Give it a name you will
       recognise.
     </p>
     <TextField value={props.data.name} onChange={(value) => props.updateData({ name: value })}>

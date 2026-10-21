@@ -33,7 +33,7 @@ const STATE_CLASS: Record<TraefikProviderSummary["state"], string> = {
 };
 
 async function fetchProviders(): Promise<TraefikProviderSummary[]> {
-  const res = await api.get<{ items: TraefikProviderSummary[] }>("/traefik-providers");
+  const res = await api.get<{ items: TraefikProviderSummary[] }>("/agents");
   return res.items;
 }
 
@@ -69,34 +69,34 @@ export default function TraefikProviders() {
 
   const handleRename = (provider: TraefikProviderSummary) =>
     guarded(async () => {
-      const name = prompt("New name for this provider", provider.name)?.trim();
+      const name = prompt("New name for this agent", provider.name)?.trim();
       if (!name || name === provider.name) return;
-      await api.patch<TraefikProviderSummary>(`/traefik-providers/${provider.providerId}`, { name });
+      await api.patch<TraefikProviderSummary>(`/agents/${provider.providerId}`, { name });
     });
 
   const handleDelete = (provider: TraefikProviderSummary) =>
     guarded(async () => {
-      if (!confirm(`Delete "${provider.name}"? Its agent will be disconnected and the address stops working.`)) return;
-      await api.delete(`/traefik-providers/${provider.providerId}`);
+      if (!confirm(`Delete the agent "${provider.name}"? It will be disconnected and its address stops working.`)) return;
+      await api.delete(`/agents/${provider.providerId}`);
     });
 
   const handleNewToken = (provider: TraefikProviderSummary) =>
     guarded(async () => {
-      const token = await api.post<{ value: string }>(`/traefik-providers/${provider.providerId}/tokens`);
+      const token = await api.post<{ value: string }>(`/agents/${provider.providerId}/tokens`);
       setNewToken({ providerName: provider.name, value: token.value });
     });
 
   const handleRevoke = (provider: TraefikProviderSummary, tokenId: string, last4: string) =>
     guarded(async () => {
       if (!confirm(`Revoke the token ending in ${last4}? An agent using it is disconnected immediately.`)) return;
-      await api.delete(`/traefik-providers/${provider.providerId}/tokens/${tokenId}`);
+      await api.delete(`/agents/${provider.providerId}/tokens/${tokenId}`);
     });
 
   return (
     <div class="space-y-6">
       <div class="flex items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Traefik providers</h1>
-        <Button onClick={() => setCreating(true)}>Add a provider</Button>
+        <h1 class="text-2xl font-semibold tracking-tight">Agents</h1>
+        <Button onClick={() => setCreating(true)}>Add an agent</Button>
       </div>
 
       <Show when={error()}>
@@ -107,7 +107,7 @@ export default function TraefikProviders() {
         {(actions) => (
           <Alert variant="destructive" role="alert">
             <AlertDescription>
-              <p>This provider is still used by {actions().length} action(s) and can't be deleted yet:</p>
+              <p>This agent is still used by {actions().length} action(s) and can't be deleted yet:</p>
               <ul class="mt-2 list-disc pl-5">
                 <For each={actions()}>
                   {(action) => (
@@ -120,7 +120,7 @@ export default function TraefikProviders() {
                   )}
                 </For>
               </ul>
-              <p class="mt-2">Remove those actions first, then try deleting the provider again.</p>
+              <p class="mt-2">Remove those actions first, then try deleting the agent again.</p>
             </AlertDescription>
           </Alert>
         )}
@@ -139,8 +139,8 @@ export default function TraefikProviders() {
             when={items().length > 0}
             fallback={
               <EmptyState
-                message="You haven't added a Traefik provider yet. A provider connects one agent next to one Traefik, so FluxIP can keep its allow-lists and upstreams up to date."
-                actionLabel="Add your first provider"
+                message="You haven't added an agent yet. An agent runs next to a Traefik and lets FluxIP keep its allow-lists and upstreams up to date."
+                actionLabel="Add your first agent"
                 onAction={() => setCreating(true)}
               />
             }
@@ -252,7 +252,7 @@ export default function TraefikProviders() {
       <Dialog open={creating()} onOpenChange={(open) => !open && setCreating(false)}>
         <DialogContent class="max-w-lg">
           <DialogHeader>
-            <DialogTitle class="sr-only">Add a Traefik provider</DialogTitle>
+            <DialogTitle class="sr-only">Add an agent</DialogTitle>
           </DialogHeader>
           <Show when={creating()}>
             <TraefikProviderWizard onCreated={(result) => void handleCreated(result)} onCancel={() => setCreating(false)} />

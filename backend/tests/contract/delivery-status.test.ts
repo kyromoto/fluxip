@@ -85,7 +85,7 @@ describe("GET /ip-clients/:id/delivery-status", () => {
     await accountService.ensureProvisioned(accountId);
     await next();
   });
-  app.route("/traefik-providers", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
+  app.route("/agents", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
   app.route("/ip-clients", createIpClientsRoutes({ config, eventStore, redis, accountService }));
   app.route("/", createActionsRoutes({ config, eventStore, redis, providerStore: store }));
   app.route("/", createDeliveryStatusRoutes({ eventStore, store, registry }));
@@ -106,7 +106,7 @@ describe("GET /ip-clients/:id/delivery-status", () => {
 
   it("walks through disconnected -> pending -> applied -> error as the agent reports", async () => {
     const accountId = `status-${Date.now()}`;
-    const providerId = ((await (await send(accountId, "POST", "/traefik-providers", { name: "S" })).json()) as { providerId: string }).providerId;
+    const providerId = ((await (await send(accountId, "POST", "/agents", { name: "S" })).json()) as { providerId: string }).providerId;
     const ipClientId = ((await (await send(accountId, "POST", "/ip-clients", { label: "d" })).json()) as { ipClientId: string }).ipClientId;
     await send(accountId, "POST", `/ip-clients/${ipClientId}/actions`, { type: "traefik_config_delivery", config: { traefikProviderId: providerId, group: "g" } });
 
@@ -134,7 +134,7 @@ describe("GET /ip-clients/:id/delivery-status", () => {
     expect(await status()).toMatchObject({ status: "error", error: { reason: "template broken.yml.tmpl: invalid YAML" } });
 
     // The failure is visible on the provider as well (US6-3).
-    const list = (await (await send(accountId, "GET", "/traefik-providers")).json()) as { items: { lastError: { reason: string } | null; appliedVersion: number; agentVersion: string; state: string }[] };
+    const list = (await (await send(accountId, "GET", "/agents")).json()) as { items: { lastError: { reason: string } | null; appliedVersion: number; agentVersion: string; state: string }[] };
     expect(list.items[0]).toMatchObject({ state: "connected", agentVersion: "1", appliedVersion: version, lastError: { reason: "template broken.yml.tmpl: invalid YAML" } });
 
     registry.unregister(providerId, "s");

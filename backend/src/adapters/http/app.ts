@@ -85,7 +85,7 @@ export function createApp(deps: AppDependencies): CreatedApp {
     createProviderCredentialsRoutes({ config: deps.config, eventStore: deps.eventStore }),
   );
   api.route(
-    "/traefik-providers",
+    "/agents",
     createTraefikProvidersRoutes({
       config: deps.config,
       eventStore: deps.eventStore,

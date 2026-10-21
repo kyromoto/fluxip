@@ -18,6 +18,27 @@ const CATALOG: ErrorMatch[] = [
     message: "Your new password needs to be at least 8 characters.",
   },
   {
+    status: 422,
+    errorBody: "agent_public_url_not_configured",
+    message:
+      "This FluxIP deployment has no public agent address yet. Set BACKEND_AGENT_PUBLIC_URL on the backend (e.g. https://agents.example.com) and restart it.",
+  },
+  {
+    status: 409,
+    errorBody: "name_in_use",
+    message: "You already have an agent with this name. Choose a different one.",
+  },
+  {
+    status: 409,
+    errorBody: "delivery_action_exists",
+    message: "This device already delivers to that agent. Edit the existing action instead.",
+  },
+  {
+    status: 422,
+    errorBody: "invalid_group",
+    message: "The group may only contain lowercase letters, digits, \".\", \"_\" or \"-\", and must start with a letter or digit.",
+  },
+  {
     status: 502,
     message: "We couldn't update your password right now. Please try again in a moment.",
   },

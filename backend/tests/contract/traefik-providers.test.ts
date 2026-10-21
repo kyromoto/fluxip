@@ -26,7 +26,7 @@ describe("Traefik providers API", () => {
     await accountService.ensureProvisioned(accountId);
     await next();
   });
-  app.route("/traefik-providers", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
+  app.route("/agents", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
 
   beforeAll(async () => {
     await runMigrations(pool);
@@ -38,7 +38,7 @@ describe("Traefik providers API", () => {
   const unique = (label: string) => `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   function call(accountId: string, path: string, init?: RequestInit): Promise<Response> {
-    return app.request(`/traefik-providers${path}`, { ...init, headers: { "content-type": "application/json", ...init?.headers, "x-test-account": accountId } });
+    return app.request(`/agents${path}`, { ...init, headers: { "content-type": "application/json", ...init?.headers, "x-test-account": accountId } });
   }
   const post = (accountId: string, body: unknown, path = "") => call(accountId, path, { method: "POST", body: JSON.stringify(body) });
 

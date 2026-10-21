@@ -8,7 +8,7 @@ import { api } from "~/services/api";
 import type { ActionWizardData } from "../ActionWizard";
 
 async function fetchProviders(): Promise<TraefikProviderSummary[]> {
-  const res = await api.get<{ items: TraefikProviderSummary[] }>("/traefik-providers");
+  const res = await api.get<{ items: TraefikProviderSummary[] }>("/agents");
   return res.items;
 }
 
@@ -17,7 +17,7 @@ export const TraefikDeliveryStep: Component<WizardStepComponentProps<ActionWizar
   const [providers] = createResource(fetchProviders);
   const [detail] = createResource(
     () => props.data.traefikProviderId || null,
-    (id) => api.get<TraefikProviderDetail>(`/traefik-providers/${id}`),
+    (id) => api.get<TraefikProviderDetail>(`/agents/${id}`),
   );
   const [typing, setTyping] = createSignal(false);
 
@@ -26,10 +26,10 @@ export const TraefikDeliveryStep: Component<WizardStepComponentProps<ActionWizar
 
   return (
     <div class="space-y-4">
-      <h2 class="text-lg font-semibold">Which Traefik should get this device's address?</h2>
+      <h2 class="text-lg font-semibold">Which agent should get this device's address?</h2>
 
       <div class="space-y-1">
-        <label class="text-sm font-medium">Traefik provider</label>
+        <label class="text-sm font-medium">Agent</label>
         <Show
           when={(providers() ?? []).length > 0}
           fallback={
@@ -38,8 +38,8 @@ export const TraefikDeliveryStep: Component<WizardStepComponentProps<ActionWizar
                 "Loading…"
               ) : (
                 <>
-                  You don't have a Traefik provider yet.{" "}
-                  <a href="/traefik-providers" class="underline">
+                  You don't have an agent yet.{" "}
+                  <a href="/agents" class="underline">
                     Add one first
                   </a>
                   , then come back.
@@ -54,11 +54,11 @@ export const TraefikDeliveryStep: Component<WizardStepComponentProps<ActionWizar
             optionTextValue={(p) => p.name}
             value={(providers() ?? []).find((p) => p.providerId === props.data.traefikProviderId) ?? null}
             onChange={(p) => props.updateData({ traefikProviderId: p?.providerId ?? "", group: "" })}
-            placeholder="Select a provider…"
+            placeholder="Select an agent…"
             itemComponent={(itemProps) => <SelectItem item={itemProps.item}>{itemProps.item.rawValue.name}</SelectItem>}
           >
             <SelectTrigger>
-              <SelectValue<TraefikProviderSummary>>{(state) => state.selectedOption()?.name ?? "Select a provider…"}</SelectValue>
+              <SelectValue<TraefikProviderSummary>>{(state) => state.selectedOption()?.name ?? "Select an agent…"}</SelectValue>
             </SelectTrigger>
             <SelectContent />
           </Select>

@@ -31,6 +31,7 @@ export function useWizard<TData extends object>(definition: WizardDefinition<TDa
   const [currentStepIndex, setCurrentStepIndex] = createSignal(0);
   const [data, setData] = createSignal<TData>(definition.initialData);
   const [isSubmitting, setIsSubmitting] = createSignal(false);
+  const [submitError, setSubmitError] = createSignal<unknown>(null);
 
   const currentStep = createMemo(() => definition.steps[currentStepIndex()]);
   const totalSteps = () => definition.steps.length;
@@ -57,8 +58,12 @@ export function useWizard<TData extends object>(definition: WizardDefinition<TDa
   async function submit(): Promise<void> {
     if (!isLastStep() || !canGoNext() || isSubmitting()) return;
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       await definition.onComplete(data());
+    } catch (err) {
+      // Stay on the last step with the data intact, and tell the user why nothing happened.
+      setSubmitError(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -76,6 +81,7 @@ export function useWizard<TData extends object>(definition: WizardDefinition<TDa
     goNext,
     goBack,
     isSubmitting,
+    submitError,
     submit,
   };
 }

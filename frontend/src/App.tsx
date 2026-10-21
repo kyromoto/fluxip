@@ -28,7 +28,7 @@ export default function App() {
         <Route path="/ip-clients/:ipClientId/history" component={DeviceHistory} />
         <Route path="/actions/:actionId/executions" component={ExecutionHistory} />
         <Route path="/credentials" component={Credentials} />
-        <Route path="/traefik-providers" component={TraefikProviders} />
+        <Route path="/agents" component={TraefikProviders} />
         <Route path="/notifications" component={NotificationSettings} />
         <Route path="/account" component={Account} />
       </Route>

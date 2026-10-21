@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
+import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { Progress, ProgressLabel, ProgressValueLabel } from "~/components/ui/progress";
@@ -41,6 +42,11 @@ export function WizardShell<TData extends object>(props: WizardShellProps<TData>
           data={props.wizard.data()}
           updateData={props.wizard.updateStepData}
         />
+        <Show when={props.wizard.submitError()}>
+          <div class="mt-4">
+            <ErrorMessage error={props.wizard.submitError()} />
+          </div>
+        </Show>
       </CardContent>
       <CardFooter class="flex justify-between gap-2">
         <Button type="button" variant="ghost" onClick={() => props.onCancel()}>

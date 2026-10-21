@@ -1,10 +1,12 @@
 # Contract: Management-API (UI)
 
+> In der Oberfläche und in den Pfaden heißt die Provider-Konfiguration **Agent** (`/api/agents`, Seite `/agents`). Intern (Aggregat, Ereignisse, Aktion) bleibt `traefik_provider` bzw. `traefik_config_delivery`.
+
 Alle Pfade liegen unter `/api` und sind durch die bestehende OIDC-Authentifizierung geschützt (kontogebunden, wie `provider-credentials`). Fremde IDs ergeben `404`, nie `403`.
 
 ## Provider-Konfigurationen
 
-### `POST /api/traefik-providers`
+### `POST /api/agents`
 
 Request:
 
@@ -40,7 +42,7 @@ Antworten:
 }
 ```
 
-### `GET /api/traefik-providers`
+### `GET /api/agents`
 
 ```json
 { "items": [ {
@@ -59,15 +61,15 @@ Antworten:
 
 Die Zustandswerte sind ASCII (`connected`, `disconnected`, `stale`, `never_connected`); die UI übersetzt sie. `lastPublishError` (`{reason, at}`) nennt, warum kein neuer Stand veröffentlicht werden konnte (z. B. `too_large`). `notices` enthält Hinweise wie `previous_session_superseded` (Randfall "zwei Agents").
 
-### `GET /api/traefik-providers/:id`
+### `GET /api/agents/:id`
 
 Wie ein Listeneintrag, zusätzlich `usedBy: [{actionId, ipClientId, ipClientName, group, status}]` und `groups: [string]` (alle in Aktionen verwendeten Gruppen, für Vorschläge, US2-1).
 
-### `PATCH /api/traefik-providers/:id`
+### `PATCH /api/agents/:id`
 
 `{ "name": "…" }` → `200` mit Listeneintrag. `409 name_in_use`. Die Verbindungsart ist nicht änderbar (`422 immutable_field`).
 
-### `DELETE /api/traefik-providers/:id`
+### `DELETE /api/agents/:id`
 
 | Status | Bedeutung |
 |---|---|
@@ -77,14 +79,14 @@ Wie ein Listeneintrag, zusätzlich `usedBy: [{actionId, ipClientId, ipClientName
 
 ## Tokens
 
-### `POST /api/traefik-providers/:id/tokens`
+### `POST /api/agents/:id/tokens`
 
 Erzeugt ein weiteres Token (Rotation ohne Ausfall, US7-1).
 
 - `201` `{ "tokenId": "…", "value": "fxt_…", "last4": "…" }` (Klartext nur hier)
 - `409 token_limit_reached`, wenn schon zwei gültige existieren
 
-### `DELETE /api/traefik-providers/:id/tokens/:tokenId`
+### `DELETE /api/agents/:id/tokens/:tokenId`
 
 Widerruft sofort, beendet Sitzungen, die mit diesem Token authentifiziert wurden (US7-2).
 

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SetupResult } from "~/flows/traefik-provider-wizard/SetupResult";
 import { TraefikProviderWizard } from "~/flows/traefik-provider-wizard/TraefikProviderWizard";
 import type { CreatedProvider } from "~/lib/traefik-providers";
-import { api } from "~/services/api";
+import { api, ApiError } from "~/services/api";
 
 vi.mock("~/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/services/api")>();
@@ -61,10 +61,25 @@ describe("TraefikProviderWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(mockedApi.post).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Create provider" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
-    expect(mockedApi.post).toHaveBeenCalledWith("/traefik-providers", { name: "Office", connectionMode: "agent_initiated" });
+    expect(mockedApi.post).toHaveBeenCalledWith("/agents", { name: "Office", connectionMode: "agent_initiated" });
+  });
+
+  it("shows why creating failed instead of doing nothing, and keeps the entered data", async () => {
+    mockedApi.post.mockRejectedValueOnce(new ApiError(422, JSON.stringify({ error: "agent_public_url_not_configured" })));
+    const onCreated = vi.fn();
+    render(() => <TraefikProviderWizard onCreated={onCreated} onCancel={vi.fn()} />);
+
+    fireEvent.input(screen.getByPlaceholderText("e.g. Office Berlin"), { target: { value: "Office" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("BACKEND_AGENT_PUBLIC_URL");
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeTruthy();
   });
 
   it("cancelling leaves nothing created", () => {

@@ -39,7 +39,7 @@ describe("agent credentials and lifecycle over a live session", () => {
     await accountService.ensureProvisioned(accountId);
     await next();
   });
-  api.route("/traefik-providers", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
+  api.route("/agents", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
 
   beforeAll(async () => {
     await runMigrations(pool);
@@ -59,7 +59,7 @@ describe("agent credentials and lifecycle over a live session", () => {
     });
 
   async function createViaApi(accountId: string) {
-    const created = (await (await request(accountId, "POST", "/traefik-providers", { name: "Live" })).json()) as {
+    const created = (await (await request(accountId, "POST", "/agents", { name: "Live" })).json()) as {
       providerId: string;
       token: { tokenId: string; value: string };
     };
@@ -76,7 +76,7 @@ describe("agent credentials and lifecycle over a live session", () => {
   it("rotates without downtime: the old token keeps working until it is revoked, then the live session ends (US7-1/2)", async () => {
     const accountId = `acc-${Date.now()}-rot`;
     const p = await createViaApi(accountId);
-    const second = (await (await request(accountId, "POST", `/traefik-providers/${p.providerId}/tokens`, {})).json()) as { value: string };
+    const second = (await (await request(accountId, "POST", `/agents/${p.providerId}/tokens`, {})).json()) as { value: string };
 
     const oldAgent = await connect(p.providerId, p.token);
     await oldAgent.waitForMessage("snapshot");
@@ -87,7 +87,7 @@ describe("agent credentials and lifecycle over a live session", () => {
     expect((await oldAgent.waitForError()).code).toBe(grpc.status.ABORTED);
 
     const started = Date.now();
-    expect((await request(accountId, "DELETE", `/traefik-providers/${p.providerId}/tokens/${p.tokenId}`)).status).toBe(204);
+    expect((await request(accountId, "DELETE", `/agents/${p.providerId}/tokens/${p.tokenId}`)).status).toBe(204);
     // The session of the second token is unaffected by revoking the first one.
     expect(registry.isConnected(p.providerId)).toBe(true);
 
@@ -96,7 +96,7 @@ describe("agent credentials and lifecycle over a live session", () => {
 
     // Revoking the token the live session uses ends it promptly.
     const secondTokenId = (await store.load(accountId, p.providerId)).state.tokens.find((t) => !t.revokedAt)!.tokenId;
-    expect((await request(accountId, "DELETE", `/traefik-providers/${p.providerId}/tokens/${secondTokenId}`)).status).toBe(204);
+    expect((await request(accountId, "DELETE", `/agents/${p.providerId}/tokens/${secondTokenId}`)).status).toBe(204);
     expect((await newAgent.waitForError(2000)).code).toBe(grpc.status.UNAUTHENTICATED);
     expect(Date.now() - started).toBeLessThan(3000);
     await waitFor(() => !registry.isConnected(p.providerId), 2000);
@@ -111,7 +111,7 @@ describe("agent credentials and lifecycle over a live session", () => {
     const agent = await connect(p.providerId, p.token);
     await agent.waitForMessage("snapshot");
 
-    expect((await request(accountId, "DELETE", `/traefik-providers/${p.providerId}`)).status).toBe(204);
+    expect((await request(accountId, "DELETE", `/agents/${p.providerId}`)).status).toBe(204);
     expect((await agent.waitForError(2000)).code).toBe(grpc.status.UNAUTHENTICATED);
 
     const again = await connect(p.providerId, p.token);

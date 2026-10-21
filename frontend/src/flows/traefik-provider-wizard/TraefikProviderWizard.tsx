@@ -32,7 +32,7 @@ export function TraefikProviderWizard(props: TraefikProviderWizardProps) {
       { id: "review", title: "Review", component: ReviewProviderStep, isValid: () => true },
     ],
     onComplete: async (data) => {
-      const created = await api.post<CreatedProvider>("/traefik-providers", {
+      const created = await api.post<CreatedProvider>("/agents", {
         name: data.name.trim(),
         connectionMode: data.connectionMode,
       });
@@ -41,5 +41,5 @@ export function TraefikProviderWizard(props: TraefikProviderWizardProps) {
   };
 
   const wizard = useWizard(definition);
-  return <WizardShell wizard={wizard} onCancel={() => props.onCancel()} confirmLabel="Create provider" />;
+  return <WizardShell wizard={wizard} onCancel={() => props.onCancel()} confirmLabel="Create agent" />;
 }

@@ -10,11 +10,11 @@ Ein Leitfaden zum Prüfen des Features Ende zu Ende. Er enthält keine Implement
 - Ein Verzeichnis `./tmp/out` als Ziel und `./tmp/templates` für Vorlagen.
 - Optional ein Traefik v3 mit File Provider (`directory: ./tmp/out`, `watch: true`) für Szenario 8.
 
-## 1. Provider anlegen und Agent starten (US1)
+## 1. Agent anlegen und starten (US1)
 
 ```bash
 # Backend + Frontend starten (bestehendes Vorgehen), dann in der UI:
-#   Traefik-Provider → Neu → Name "Test" → Token und Startbefehl kopieren
+#   Agents → Add an agent → Name "Test" → Token und Startbefehl kopieren
 cd agent && go build -o ../tmp/fluxip-agent ./cmd/fluxip-agent
 ./tmp/fluxip-agent templates --write ./tmp/templates
 FLUXIP_ADDRESS=<Agent-Adresse> FLUXIP_TOKEN=<Token> \
@@ -76,7 +76,7 @@ Zweiten Agent mit demselben Token starten: der erste erhält `Bye{superseded}`, 
 ## 7. Variante B (US8)
 
 - UI: "FluxIP verbindet zum Agent" sichtbar, deaktiviert, "noch nicht verfügbar".
-- `POST /api/traefik-providers` mit `connectionMode: "server_initiated"` → `422 connection_mode_not_available`.
+- `POST /api/agents` mit `connectionMode: "server_initiated"` → `422 connection_mode_not_available`.
 
 ## 8. Mit echtem Traefik (Annahmen aus research.md §16)
 

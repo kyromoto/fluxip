@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { toUserMessage } from "~/lib/errors";
 import { ApiError } from "~/services/api";
 
+describe("toUserMessage (Traefik providers)", () => {
+  it("explains a missing public agent address", () => {
+    const err = new ApiError(422, JSON.stringify({ error: "agent_public_url_not_configured" }));
+    expect(toUserMessage(err)).toContain("BACKEND_AGENT_PUBLIC_URL");
+  });
+  it("explains duplicate names and delivery actions", () => {
+    expect(toUserMessage(new ApiError(409, JSON.stringify({ error: "name_in_use" })))).toMatch(/already have an agent/);
+    expect(toUserMessage(new ApiError(409, JSON.stringify({ error: "delivery_action_exists" })))).toMatch(/already delivers/);
+  });
+});
+
 describe("toUserMessage", () => {
   it("maps a known 400 error body to its plain-language message", () => {
     const err = new ApiError(400, JSON.stringify({ error: "newPassword must be at least 8 characters" }));

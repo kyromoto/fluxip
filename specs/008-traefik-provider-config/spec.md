@@ -27,7 +27,7 @@ FluxIP liefert ausschließlich Daten. Das Zielformat bestimmen lokale Vorlagen b
 
 | Begriff | Bedeutung |
 |---|---|
-| Provider-Konfiguration | Konfiguration auf Account-Ebene, die einen Agent beschreibt: Name, Verbindungsart, Agent-Adresse, Zugangsdaten |
+| Provider-Konfiguration (in der Oberfläche: **Agent**) | Konfiguration auf Account-Ebene, die einen Agent beschreibt: Name, Verbindungsart, Agent-Adresse, Zugangsdaten |
 | Agent | Programm am abgesetzten System, das aus Vorlagen und gelieferten Daten Dateien für Traefik erzeugt |
 | Aktion | Aktion eines Geräts. Hier neu: eine Aktion, die eine Provider-Konfiguration auswählt und die Daten des Geräts dorthin liefert |
 | Gruppe | Frei benannter Schlüssel in der Aktion (z. B. `admin-allowlist`). Vorlagen wählen darüber die Einträge aus |

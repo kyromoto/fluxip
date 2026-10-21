@@ -39,7 +39,7 @@ describe("Traefik delivery action API", () => {
     await accountService.ensureProvisioned(accountId);
     await next();
   });
-  app.route("/traefik-providers", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
+  app.route("/agents", createTraefikProvidersRoutes({ config, eventStore, store, registry }));
   app.route("/ip-clients", createIpClientsRoutes({ config, eventStore, redis, accountService, snapshots }));
   app.route("/", createActionsRoutes({ config, eventStore, redis, providerStore: store, snapshots }));
   app.route("/", createActionRunRoutes({ eventStore, actionExecutionQueue }));
@@ -60,7 +60,7 @@ describe("Traefik delivery action API", () => {
     call(accountId, path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
   async function provider(accountId: string, name = "Nord"): Promise<string> {
-    return ((await (await send(accountId, "POST", "/traefik-providers", { name })).json()) as { providerId: string }).providerId;
+    return ((await (await send(accountId, "POST", "/agents", { name })).json()) as { providerId: string }).providerId;
   }
   async function device(accountId: string, label = "dev"): Promise<string> {
     return ((await (await send(accountId, "POST", "/ip-clients", { label })).json()) as { ipClientId: string }).ipClientId;
@@ -90,7 +90,7 @@ describe("Traefik delivery action API", () => {
       }),
     ]);
 
-    const detail = (await (await call(accountId, `/traefik-providers/${providerId}`)).json()) as { usedBy: unknown[]; groups: string[]; actionCount: number };
+    const detail = (await (await call(accountId, `/agents/${providerId}`)).json()) as { usedBy: unknown[]; groups: string[]; actionCount: number };
     expect(detail.actionCount).toBe(1);
     expect(detail.groups).toEqual(["admin-allowlist"]);
     expect(detail.usedBy).toEqual([expect.objectContaining({ actionId, ipClientId, group: "admin-allowlist", status: "enabled" })]);
@@ -189,7 +189,7 @@ describe("Traefik delivery action API", () => {
     scheduled.length = 0;
     expect((await send(accountId, "DELETE", `/actions/${actionId}`)).status).toBe(200);
     expect(scheduled).toContainEqual({ accountId, providerIds: [providerId] });
-    const detail = (await (await call(accountId, `/traefik-providers/${providerId}`)).json()) as { actionCount: number };
+    const detail = (await (await call(accountId, `/agents/${providerId}`)).json()) as { actionCount: number };
     expect(detail.actionCount).toBe(0);
   });
 
@@ -216,11 +216,11 @@ describe("Traefik delivery action API", () => {
     const ipClientId = await device(accountId);
     const { actionId } = (await (await attach(accountId, ipClientId, { traefikProviderId: providerId, group: "g" })).json()) as { actionId: string };
 
-    const blocked = await send(accountId, "DELETE", `/traefik-providers/${providerId}`);
+    const blocked = await send(accountId, "DELETE", `/agents/${providerId}`);
     expect(blocked.status).toBe(409);
     expect(await blocked.json()).toEqual({ error: "traefik_provider_in_use", usedBy: [{ actionId, ipClientId, group: "g" }] });
 
     await send(accountId, "DELETE", `/actions/${actionId}`);
-    expect((await send(accountId, "DELETE", `/traefik-providers/${providerId}`)).status).toBe(204);
+    expect((await send(accountId, "DELETE", `/agents/${providerId}`)).status).toBe(204);
   });
 });

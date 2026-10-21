@@ -41,9 +41,9 @@ describe("TraefikDeliveryStep", () => {
     mockedApi.get.mockResolvedValueOnce({ items: [] });
     render(() => <TraefikDeliveryStep data={baseData()} updateData={vi.fn()} />);
 
-    await screen.findByText(/don't have a Traefik provider yet/i);
+    await screen.findByText(/don't have an agent yet/i);
     const link = screen.getByRole("link", { name: /add one first/i });
-    expect(link.getAttribute("href")).toBe("/traefik-providers");
+    expect(link.getAttribute("href")).toBe("/agents");
     expect(screen.queryByLabelText("Group")).toBeNull();
   });
 
@@ -51,15 +51,15 @@ describe("TraefikDeliveryStep", () => {
     mockedApi.get.mockResolvedValueOnce({ items: [provider("p1", "Office"), provider("p2", "Home")] });
     render(() => <TraefikDeliveryStep data={baseData()} updateData={vi.fn()} />);
 
-    await screen.findByText("Select a provider…");
-    expect(mockedApi.get).toHaveBeenCalledWith("/traefik-providers");
+    await screen.findByText("Select an agent…");
+    expect(mockedApi.get).toHaveBeenCalledWith("/agents");
     expect(screen.queryByLabelText("Group")).toBeNull();
   });
 
   it("suggests the groups already used by the chosen provider and fills the group on click (US2-1)", async () => {
     mockedApi.get.mockImplementation(async (path: string) => {
-      if (path === "/traefik-providers") return { items: [provider("p1", "Office")] };
-      if (path === "/traefik-providers/p1") return { ...provider("p1", "Office"), groups: ["admin-allowlist", "homelab"], usedBy: [] };
+      if (path === "/agents") return { items: [provider("p1", "Office")] };
+      if (path === "/agents/p1") return { ...provider("p1", "Office"), groups: ["admin-allowlist", "homelab"], usedBy: [] };
       throw new Error(`unexpected ${path}`);
     });
     const updateData = vi.fn();
@@ -72,7 +72,7 @@ describe("TraefikDeliveryStep", () => {
 
   it("normalizes typed groups to lowercase and flags malformed ones", async () => {
     mockedApi.get.mockImplementation(async (path: string) => {
-      if (path === "/traefik-providers") return { items: [provider("p1", "Office")] };
+      if (path === "/agents") return { items: [provider("p1", "Office")] };
       return { ...provider("p1", "Office"), groups: [], usedBy: [] };
     });
     const updateData = vi.fn();
@@ -89,7 +89,7 @@ describe("TraefikDeliveryStep", () => {
 
   it("warns that a name outside the suggestions creates a new group (typo guard)", async () => {
     mockedApi.get.mockImplementation(async (path: string) => {
-      if (path === "/traefik-providers") return { items: [provider("p1", "Office")] };
+      if (path === "/agents") return { items: [provider("p1", "Office")] };
       return { ...provider("p1", "Office"), groups: ["admin-allowlist"], usedBy: [] };
     });
     render(() => <TraefikDeliveryStep data={baseData({ traefikProviderId: "p1", group: "admin-alowlist" })} updateData={vi.fn()} />);

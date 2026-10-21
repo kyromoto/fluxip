@@ -12,7 +12,7 @@ See `specs/001-ip-change-automation/` for the full spec (`spec.md`), architectur
 - **Projections**: Redis read models (device lists, execution history) — always rebuildable from Postgres, never consulted for business decisions.
 - **Auth**: [Logto](https://logto.io/) as the OIDC identity provider — FluxIP verifies JWTs via JWKS and never stores a password. In-app password change/account deletion are proxied to Logto's Management API.
 - **Frontend**: SolidJS + Vite, styled with Tailwind CSS and [Kobalte](https://kobalte.dev/)/[Solid UI](https://www.solid-ui.com/) components (copied into the repo, not installed as a library) — auto dark/light via Tailwind's `media` strategy, no manual toggle. Account onboarding, Trigger Device creation, and Action configuration are guided multi-step flows; everything else stays a direct, single-step view. See `specs/003-end-user-ui-redesign/` for the full spec/plan/research.
-- **Traefik agents** (`agent/`, `specs/008-traefik-provider-config/`): a small Go binary next to a remote Traefik receives each provider's devices and IPs from FluxIP over a long-lived gRPC session, renders local templates, and writes the result atomically into Traefik's file-provider directory. See [Traefik agents](#traefik-agents).
+- **Traefik agents** (`agent/`, `specs/008-traefik-provider-config/`): a small Go binary next to a remote Traefik receives its devices and IPs from FluxIP over a long-lived gRPC session, renders local templates, and writes the result atomically into Traefik's file-provider directory. See [Traefik agents](#traefik-agents).
 - **Metrics**: Prometheus-compatible `/metrics`, including per-aggregate replay duration/event-count histograms (`fluxip_replay_duration_seconds`, `fluxip_replay_events_total`), so aggregates that get slower to replay over time are visible before snapshotting is ever needed.
 
 ## Prerequisites
@@ -109,8 +109,8 @@ FluxIP can keep dynamic Traefik configuration up to date on remote systems — t
 
 **How it fits together**
 
-1. In the UI, add a **Traefik provider** (one per agent / Traefik). FluxIP shows the agent address, a token (once) and a start command.
-2. On a device, add the action **Traefik configuration**, choose the provider and a *group* (for example `admin-allowlist`). Devices with the same provider and group end up in the same list. A device can deliver to a given provider through one action; it can deliver to several providers.
+1. In the UI, open **Agents** and add one per Traefik host. FluxIP shows the agent address, a token (once) and a start command.
+2. On a device, add the action **Traefik configuration**, choose the agent and a *group* (for example `admin-allowlist`). Devices with the same agent and group end up in the same list. A device can deliver to a given agent through one action; it can deliver to several agents.
 3. Run the agent next to Traefik. It connects **outbound only** (no open ports), receives a complete snapshot, renders every `*.tmpl` file in its template directory and writes `fluxip-<name>.yml|yaml|toml` into Traefik's file-provider directory.
 
 ```bash
@@ -131,7 +131,7 @@ Traefik needs a file provider with `watch: true` on that directory; reference th
 | Name | Default | Description |
 |---|---|---|
 | `BACKEND_AGENT_PORT` | `8081` | Port of the agent session listener (gRPC over h2c). Put a reverse-proxy router with an **h2c backend** in front of it (example: [`deploy/traefik/agents-router.example.yml`](deploy/traefik/agents-router.example.yml)) and give agents the public URL. |
-| `BACKEND_AGENT_PUBLIC_URL` | — | Public base URL agents use, e.g. `https://agents.example.com`. Providers can't be created while it is empty. |
+| `BACKEND_AGENT_PUBLIC_URL` | — | Public base URL agents use, e.g. `https://agents.example.com`. Agents can't be created while it is empty. |
 | `BACKEND_AGENT_SNAPSHOT_MAX_BYTES` | `1048576` | Largest snapshot FluxIP will send; beyond it the provider shows an error and the agent keeps its last files. |
 | `BACKEND_AGENT_SNAPSHOT_COALESCE_MS` / `_RESYNC_MS` / `_HEARTBEAT_SECONDS` | `1000` / `900000` / `30` | Collapse window for change bursts, periodic full resend, session heartbeat. |
 
