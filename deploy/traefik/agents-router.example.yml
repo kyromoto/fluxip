@@ -1,0 +1,35 @@
+# Example Traefik configuration that exposes FluxIP's agent session listener
+# (BACKEND_AGENT_PORT, default 8081) to remote agents — specs/008-traefik-provider-config.
+#
+# Agents connect with gRPC (HTTP/2) to https://agents.example.com/<providerId>; TLS ends at Traefik and the
+# backend is spoken to over cleartext HTTP/2 ("h2c").
+#
+# ---- 1. STATIC configuration (traefik.yml) — REQUIRED -------------------------------------------------------
+# A session is one long-lived HTTP/2 stream. Traefik's default readTimeout (60 s) resets it with
+# "RST_STREAM ... INTERNAL_ERROR" exactly one minute after it was opened; the agent then reconnects, so
+# everything keeps working but the connection flaps every minute. Verified with Traefik v3.3: with
+# readTimeout 0 a session stays up. The timeout applies to the whole entrypoint, so give agents their own
+# entrypoint rather than relaxing it for your other services:
+#
+#   entryPoints:
+#     agents:
+#       address: ":8443"
+#       transport:
+#         respondingTimeouts:
+#           readTimeout: 0
+#
+# ---- 2. DYNAMIC configuration (this file) ---------------------------------------------------------------------
+http:
+  routers:
+    fluxip-agents:
+      rule: Host(`agents.example.com`)
+      entryPoints: [agents]
+      service: fluxip-agents
+      tls:
+        certResolver: letsencrypt
+  services:
+    fluxip-agents:
+      loadBalancer:
+        servers:
+          # The h2c:// scheme matters: without it Traefik would talk HTTP/1.1 and gRPC would fail.
+          - url: "h2c://app:8081"

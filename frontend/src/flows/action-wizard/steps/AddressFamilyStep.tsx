@@ -1,4 +1,4 @@
-import type { Component } from "solid-js";
+import { Show, type Component } from "solid-js";
 import { Checkbox } from "~/components/ui/checkbox";
 import type { WizardStepComponentProps } from "~/flows/wizard/useWizard";
 import type { ActionWizardData } from "../ActionWizard";
@@ -8,6 +8,17 @@ export const AddressFamilyStep: Component<WizardStepComponentProps<ActionWizardD
   const isDns = () => props.data.type === "hetzner_cloud_dns_update";
 
   return (
+    <Show
+      when={props.data.type !== "traefik_config_delivery"}
+      fallback={
+        <div class="space-y-3">
+          <h2 class="text-lg font-semibold">Which address(es) should this keep updated?</h2>
+          <p class="text-sm text-muted-foreground">
+            Every address this device reports is sent to the agent, IPv4 and IPv6 alike. Your templates decide which ones to use.
+          </p>
+        </div>
+      }
+    >
     <div class="space-y-3">
       <h2 class="text-lg font-semibold">Which address(es) should this keep updated?</h2>
       <label class="flex items-center gap-2 text-sm">
@@ -19,5 +30,6 @@ export const AddressFamilyStep: Component<WizardStepComponentProps<ActionWizardD
         IPv6{isDns() ? " (AAAA record)" : ""}
       </label>
     </div>
+    </Show>
   );
 };

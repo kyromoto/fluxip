@@ -7,6 +7,7 @@ import { actionReducer, initialActionState } from "../../../domain/action/action
 import {
   ACTION_AGGREGATE_TYPE,
   HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE,
+  hasProviderCredential,
   type UpdateDnsRecordConfig,
   type UpdateFirewallRuleConfig,
 } from "../../../domain/action/events.js";
@@ -149,7 +150,8 @@ export function createProviderCredentialsRoutes(deps: ProviderCredentialsRouteDe
       );
       if (
         actionState.status !== "detached" &&
-        actionState.config?.providerCredentialId === credentialId &&
+        hasProviderCredential(actionState.config) &&
+        actionState.config.providerCredentialId === credentialId &&
         actionState.actionId &&
         actionState.ipClientId
       ) {

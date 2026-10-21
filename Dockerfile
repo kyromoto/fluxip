@@ -34,6 +34,8 @@ COPY --from=prod-deps /app/backend/node_modules ./backend/node_modules
 COPY --from=prod-deps /app/frontend/node_modules ./frontend/node_modules
 COPY --from=build /app/backend/package.json ./backend/package.json
 COPY --from=build /app/backend/dist ./backend/dist
+# Agent session contract, loaded at runtime by the gRPC server (specs/008-traefik-provider-config).
+COPY proto ./proto
 COPY --from=build /app/frontend/dist ./frontend/dist
 # The Node helper docker-entrypoint.sh below invokes to (re)generate
 # frontend/dist/config.js at container start (specs/006-frontend-runtime-config)

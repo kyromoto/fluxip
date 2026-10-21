@@ -10,34 +10,51 @@ export const ReviewActionStep: Component<WizardStepComponentProps<ActionWizardDa
     <div class="space-y-2">
       <h2 class="text-lg font-semibold">Review</h2>
       <Show
-        when={props.data.type === "hetzner_cloud_dns_update"}
+        when={props.data.type !== "traefik_config_delivery"}
         fallback={
+          <>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt class="text-muted-foreground">Group</dt>
+              <dd>{props.data.group.trim()}</dd>
+              <dt class="text-muted-foreground">Sends</dt>
+              <dd>All addresses of this device (IPv4 and IPv6)</dd>
+            </dl>
+            <p class="text-sm text-muted-foreground">
+              Once confirmed, this device's address is sent to the Traefik agent and kept up to date whenever it changes.
+            </p>
+          </>
+        }
+      >
+        <Show
+          when={props.data.type === "hetzner_cloud_dns_update"}
+          fallback={
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt class="text-muted-foreground">Firewall ID</dt>
+              <dd>{props.data.firewallId}</dd>
+              <dt class="text-muted-foreground">Rule</dt>
+              <dd>
+                {props.data.direction} / {props.data.protocol}
+                {props.data.port ? ` / ${props.data.port}` : ""} / {props.data.description}
+              </dd>
+              <dt class="text-muted-foreground">Keeps updated</dt>
+              <dd>{families()}</dd>
+            </dl>
+          }
+        >
           <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            <dt class="text-muted-foreground">Firewall ID</dt>
-            <dd>{props.data.firewallId}</dd>
-            <dt class="text-muted-foreground">Rule</dt>
-            <dd>
-              {props.data.direction} / {props.data.protocol}
-              {props.data.port ? ` / ${props.data.port}` : ""} / {props.data.description}
-            </dd>
+            <dt class="text-muted-foreground">Zone</dt>
+            <dd>{props.data.zone}</dd>
+            <dt class="text-muted-foreground">Record</dt>
+            <dd>{props.data.recordName}</dd>
             <dt class="text-muted-foreground">Keeps updated</dt>
             <dd>{families()}</dd>
           </dl>
-        }
-      >
-        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt class="text-muted-foreground">Zone</dt>
-          <dd>{props.data.zone}</dd>
-          <dt class="text-muted-foreground">Record</dt>
-          <dd>{props.data.recordName}</dd>
-          <dt class="text-muted-foreground">Keeps updated</dt>
-          <dd>{families()}</dd>
-        </dl>
+        </Show>
+        <p class="text-sm text-muted-foreground">
+          Once confirmed, this {props.data.type === "hetzner_cloud_dns_update" ? "record" : "rule"} will be kept up to
+          date automatically whenever this device's address changes.
+        </p>
       </Show>
-      <p class="text-sm text-muted-foreground">
-        Once confirmed, this {props.data.type === "hetzner_cloud_dns_update" ? "record" : "rule"} will be kept up to
-        date automatically whenever this device's address changes.
-      </p>
     </div>
   );
 };

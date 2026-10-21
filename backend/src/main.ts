@@ -12,10 +12,16 @@ import { createDebounceWorker } from "./adapters/queue-bullmq/debounce-worker.js
 import { createActionExecutionWorker } from "./adapters/queue-bullmq/action-execution-worker.js";
 import { HetznerDnsExecutor } from "./adapters/actions/hetzner-dns/hetzner-dns-executor.js";
 import { HetznerFirewallExecutor } from "./adapters/actions/hetzner-firewall/hetzner-firewall-executor.js";
+import { GrpcAgentServer } from "./adapters/agent-grpc/grpc-agent-server.js";
+import { RedisAuthThrottle } from "./adapters/agent-grpc/auth-throttle.js";
+import { SessionRegistry } from "./adapters/agent-grpc/session-registry.js";
+import { SnapshotCoordinator } from "./adapters/agent-grpc/snapshot-coordinator.js";
+import { SnapshotPublisher } from "./adapters/queue-bullmq/snapshot-publisher.js";
 import { EmailNotifier } from "./adapters/notifications-email/email-notifier.js";
 import { loadConfig } from "./config/env.js";
 import { AccountClosureService } from "./domain/account/account-closure-service.js";
 import { AccountService } from "./domain/account/account-service.js";
+import { ProviderStore } from "./domain/traefik-provider/provider-store.js";
 import { getAppLogger } from "./observability/app-logger.js";
 import { configureLogging, disposeLogging } from "./observability/logging.js";
 
@@ -35,18 +41,19 @@ async function main(): Promise<void> {
   const debounceQueue = createDebounceQueue(config);
   const actionExecutionQueue = createActionExecutionQueue(config);
 
+  const sessionRegistry = new SessionRegistry();
   const accountClosureService = new AccountClosureService({
     eventStore,
     config,
     redis,
     debounceQueue,
     actionExecutionQueue,
+    sessions: sessionRegistry,
   });
 
   const hetznerDnsExecutor = new HetznerDnsExecutor();
   const hetznerFirewallExecutor = new HetznerFirewallExecutor(redis);
   const emailNotifier = new EmailNotifier(config);
-  const debounceWorker = createDebounceWorker({ config, eventStore, redis, actionExecutionQueue });
   const actionExecutionWorker = createActionExecutionWorker({
     config,
     eventStore,
@@ -58,6 +65,20 @@ async function main(): Promise<void> {
     notificationChannels: { [emailNotifier.type]: emailNotifier },
   });
 
+  const providerStore = new ProviderStore(eventStore, config);
+  const snapshotPublisher = new SnapshotPublisher({ config, eventStore, store: providerStore });
+  const snapshotCoordinator = new SnapshotCoordinator({ config, publisher: snapshotPublisher, registry: sessionRegistry });
+  snapshotCoordinator.startResync(() => sessionRegistry.connected());
+  const debounceWorker = createDebounceWorker({ config, eventStore, redis, actionExecutionQueue, snapshots: snapshotCoordinator });
+  const agentServer = new GrpcAgentServer({
+    config,
+    store: providerStore,
+    publisher: snapshotPublisher,
+    registry: sessionRegistry,
+    throttle: new RedisAuthThrottle(redis),
+  });
+  await agentServer.start();
+
   const { app } = createApp({
     config,
     eventStore,
@@ -66,6 +87,9 @@ async function main(): Promise<void> {
     accountClosureService,
     debounceQueue,
     actionExecutionQueue,
+    providerStore,
+    sessionRegistry,
+    snapshots: snapshotCoordinator,
   });
 
   // Bind IPv4 explicitly: without a hostname, Node defaults to "::" which on
@@ -77,6 +101,8 @@ async function main(): Promise<void> {
   });
 
   const shutdown = async (): Promise<void> => {
+    snapshotCoordinator.stop();
+    await agentServer.stop();
     await debounceWorker.close();
     await actionExecutionWorker.close();
     await pool.end();

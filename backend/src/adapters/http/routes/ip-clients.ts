@@ -23,6 +23,8 @@ import {
 } from "../../../domain/ip-client/ip-client-aggregate.js";
 import { loadAggregate } from "../../../domain/replay.js";
 import type { EventStore } from "../../../ports/event-store.js";
+import { providersOfDevice } from "../../../domain/traefik-provider/delivery-actions.js";
+import type { SnapshotScheduler } from "../../../domain/traefik-provider/snapshot-scheduler.js";
 import { listIpClientsProjection, upsertIpClientProjection } from "../../../projections/ip-clients-projection.js";
 import { getAuth } from "../../auth-logto/oidc-middleware.js";
 
@@ -31,6 +33,8 @@ export interface IpClientsRouteDeps {
   eventStore: EventStore;
   redis: Redis;
   accountService: AccountService;
+  /** Recomputes Traefik provider snapshots when a device is enabled, disabled or decommissioned (FR-013). */
+  snapshots?: SnapshotScheduler;
 }
 
 async function countActiveIpClients(eventStore: EventStore, accountId: string): Promise<number> {
@@ -56,6 +60,12 @@ async function refreshProjection(deps: IpClientsRouteDeps, accountId: string, ip
     ipClientReducer,
   );
   await upsertIpClientProjection(deps.redis, accountId, state);
+}
+
+async function scheduleDeviceProviders(deps: IpClientsRouteDeps, accountId: string, ipClientId: string): Promise<void> {
+  if (!deps.snapshots) return;
+  const providerIds = await providersOfDevice(deps.eventStore, accountId, ipClientId);
+  if (providerIds.length > 0) await deps.snapshots.schedule(accountId, providerIds);
 }
 
 /** Loads the IP Client and returns its state+version only if owned by this account, else null (404, not 403 — FR-013/SC-003). */
@@ -162,6 +172,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, ipClientId);
+    await scheduleDeviceProviders(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, status: "enabled" });
   });
 
@@ -189,6 +200,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, ipClientId);
+    await scheduleDeviceProviders(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, status: "disabled" });
   });
 
@@ -278,6 +290,7 @@ export function createIpClientsRoutes(deps: IpClientsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, ipClientId);
+    await scheduleDeviceProviders(deps, auth.accountId, ipClientId);
     return c.json({ ipClientId, status: "decommissioned" });
   });
 

@@ -34,6 +34,8 @@ function baseData(overrides: Partial<ActionWizardData> = {}): ActionWizardData {
     protocol: "tcp",
     port: "",
     description: "",
+    traefikProviderId: "",
+    group: "",
     ipv4: true,
     ipv6: false,
     ...overrides,

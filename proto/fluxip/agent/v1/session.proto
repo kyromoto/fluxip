@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package fluxip.agent.v1;
+
+option go_package = "github.com/fluxip/fluxip/agent/internal/pb/fluxip/agent/v1;agentv1";
+
+// Contract: specs/008-traefik-provider-config/contracts/agent-session.proto.md
+service AgentSession {
+  // Both directions carry the same message type. Variant A: the agent dials FluxIP.
+  rpc Session(stream Envelope) returns (stream Envelope);
+}
+
+message Envelope {
+  oneof body {
+    Hello hello = 1;
+    Snapshot snapshot = 2;
+    Report report = 3;
+    Heartbeat heartbeat = 4;
+    SyncRequest sync_request = 5;
+    Bye bye = 6;
+  }
+}
+
+message Hello {
+  uint32 protocol_version = 1;
+  string agent_version = 2;
+  uint32 max_offline_seconds = 3;
+  uint32 heartbeat_seconds = 4;
+  uint32 max_snapshot_bytes = 5;
+  string provider_name = 6;
+  uint32 accepted_version = 7;
+}
+
+message Snapshot {
+  uint64 version = 1;
+  string correlation_id = 2;
+  string generated_at = 3;
+  string provider_name = 4;
+  repeated Group groups = 5;
+}
+
+message Group {
+  string key = 1;
+  repeated Entry entries = 2;
+}
+
+message Entry {
+  string device_name = 1;
+  repeated string ips = 2;
+}
+
+message Report {
+  enum Result {
+    RESULT_UNSPECIFIED = 0;
+    RESULT_OK = 1;
+    RESULT_ERROR = 2;
+    RESULT_IGNORED_STALE = 3;
+  }
+  uint64 version = 1;
+  string correlation_id = 2;
+  Result result = 3;
+  string error = 4;
+  string agent_version = 5;
+  bool stale = 6;
+  repeated FileSum files = 7;
+  repeated FileSum templates = 8;
+  TraefikCheck traefik_check = 9;
+}
+
+message FileSum {
+  string name = 1;
+  string sha256 = 2;
+}
+
+message TraefikCheck {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_OK = 1;
+    STATUS_MISSING = 2;
+    STATUS_UNREACHABLE = 3;
+  }
+  Status status = 1;
+  repeated string loaded = 2;
+  repeated string missing = 3;
+}
+
+message Heartbeat {
+  uint64 nonce = 1;
+}
+
+message SyncRequest {}
+
+message Bye {
+  string reason = 1;
+}

@@ -1,0 +1,21 @@
+{{- /*
+  Allow-list middleware for the group "admin-allowlist".
+  Every device that has a FluxIP action for this agent and the group "admin-allowlist" is allowed.
+  With no devices, or when the data is stale (FluxIP was unreachable for too long), a loopback-only list
+  is written instead: Traefik keeps a valid middleware, and nothing from the outside is let through.
+  Reference it in a router as: admin-allowlist@file
+*/ -}}
+# fluxip:expect middleware admin-allowlist@file
+{{- $ips := cidrs (group .Groups "admin-allowlist") }}
+http:
+  middlewares:
+    admin-allowlist:
+      ipAllowList:
+        sourceRange:
+{{- if and $ips (not .Stale) }}
+{{- range $ips }}
+          - {{ quote . }}
+{{- end }}
+{{- else }}
+          - "127.0.0.1/32" # fallback: no data or data too old
+{{- end }}

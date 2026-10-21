@@ -16,6 +16,9 @@ export const HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE = "hetzner_cloud_dns_update";
 /** Second Action type (007-hetzner-firewall-action) — anticipated by FR-009/FR-035 of 001. */
 export const HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE = "hetzner_cloud_firewall_rule_update";
 
+/** Third Action type (008-traefik-provider-config): delivers a device's IPs to a Traefik provider agent. Not an ActionExecutor — see research.md §2. */
+export const TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE = "traefik_config_delivery";
+
 export interface UpdateDnsRecordConfig {
   providerCredentialId: string;
   zone: string;
@@ -34,7 +37,20 @@ export interface UpdateFirewallRuleConfig {
   description: string;
 }
 
-export type ActionConfig = UpdateDnsRecordConfig | UpdateFirewallRuleConfig;
+/** Which provider receives the device's IPs, and under which group key templates select them (FR-010). */
+export interface TraefikConfigDeliveryConfig {
+  traefikProviderId: string;
+  group: string;
+}
+
+export type ActionConfig = UpdateDnsRecordConfig | UpdateFirewallRuleConfig | TraefikConfigDeliveryConfig;
+
+/** Narrowing helper: true for the two Actions that reference a Provider Credential. */
+export function hasProviderCredential(
+  config: ActionConfig | null | undefined,
+): config is UpdateDnsRecordConfig | UpdateFirewallRuleConfig {
+  return !!config && "providerCredentialId" in config;
+}
 
 export interface ActionAttachedData {
   actionId: string;

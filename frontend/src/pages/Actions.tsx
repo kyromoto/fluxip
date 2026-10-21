@@ -7,6 +7,7 @@ import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
 import { ActionWizard, type ExistingAction } from "~/flows/action-wizard/ActionWizard";
 import { ReviewCredentialStep } from "~/flows/device-wizard/steps/ReviewCredentialStep";
+import { DELIVERY_LABEL, type DeliveryStatusItem } from "~/lib/traefik-providers";
 import { api } from "~/services/api";
 
 type AddressFamily = "ipv4" | "ipv6";
@@ -16,9 +17,17 @@ interface IpClientSummary {
   status: "enabled" | "disabled" | "decommissioned";
 }
 
-type ActionConfigSummary =
-  | { providerCredentialId: string; zone: string; recordName: string }
-  | { providerCredentialId: string; firewallId: number; direction: string; protocol: string; port?: string; description: string };
+type FirewallConfigSummary = {
+  providerCredentialId: string;
+  firewallId: number;
+  direction: string;
+  protocol: string;
+  port?: string;
+  description: string;
+};
+type DnsConfigSummary = { providerCredentialId: string; zone: string; recordName: string };
+type TraefikConfigSummary = { traefikProviderId: string; group: string };
+type ActionConfigSummary = DnsConfigSummary | FirewallConfigSummary | TraefikConfigSummary;
 
 interface ActionSummary {
   actionId: string;
@@ -32,12 +41,19 @@ interface ActionSummary {
 const ACTION_TYPE_LABEL: Record<string, string> = {
   hetzner_cloud_dns_update: "Hetzner Cloud DNS Update",
   hetzner_cloud_firewall_rule_update: "Hetzner Cloud Firewall Rule Update",
+  traefik_config_delivery: "Traefik configuration",
 };
 
-function isFirewallConfig(
-  config: ActionConfigSummary | null,
-): config is { providerCredentialId: string; firewallId: number; direction: string; protocol: string; port?: string; description: string } {
+function isFirewallConfig(config: ActionConfigSummary | null): config is FirewallConfigSummary {
   return !!config && "firewallId" in config;
+}
+
+function isTraefikConfig(config: ActionConfigSummary | null): config is TraefikConfigSummary {
+  return !!config && "traefikProviderId" in config;
+}
+
+function isDnsConfig(config: ActionConfigSummary | null): config is DnsConfigSummary {
+  return !!config && "zone" in config;
 }
 
 const STATUS_LABEL: Record<ActionSummary["status"], string> = {
@@ -57,11 +73,14 @@ function formatAddressFamilies(families: AddressFamily[]): string {
 
 function toExistingAction(action: ActionSummary): ExistingAction {
   const firewall = isFirewallConfig(action.config) ? action.config : null;
-  const dns = !isFirewallConfig(action.config) ? action.config : null;
+  const dns = isDnsConfig(action.config) ? action.config : null;
+  const traefik = isTraefikConfig(action.config) ? action.config : null;
   return {
     actionId: action.actionId,
     type: action.type as ExistingAction["type"],
-    providerCredentialId: action.config?.providerCredentialId ?? "",
+    providerCredentialId: firewall?.providerCredentialId ?? dns?.providerCredentialId ?? "",
+    traefikProviderId: traefik?.traefikProviderId ?? "",
+    group: traefik?.group ?? "",
     zone: dns?.zone ?? "",
     recordName: dns?.recordName ?? "",
     firewallId: firewall ? String(firewall.firewallId) : "",
@@ -87,6 +106,16 @@ export default function Actions() {
     async (ipClientId) => {
       const res = await api.get<{ items: ActionSummary[] }>(`/ip-clients/${ipClientId}/actions`);
       return res.items;
+    },
+  );
+
+  // Delivery status comes from its own endpoint, never from the (cached) actions list.
+  const [deliveryStatus] = createResource(
+    () => ({ id: params.ipClientId, actions: actions() }),
+    async ({ id, actions: list }) => {
+      if (!list?.some((a) => a.type === "traefik_config_delivery")) return {} as Record<string, DeliveryStatusItem>;
+      const res = await api.get<{ items: DeliveryStatusItem[] }>(`/ip-clients/${id}/delivery-status`);
+      return Object.fromEntries(res.items.map((item) => [item.actionId, item]));
     },
   );
 
@@ -217,7 +246,9 @@ export default function Actions() {
               <For each={items()}>
                 {(action) => {
                   const firewallConfig = () => (isFirewallConfig(action.config) ? action.config : null);
-                  const dnsConfig = () => (!isFirewallConfig(action.config) ? action.config : null);
+                  const dnsConfig = () => (isDnsConfig(action.config) ? action.config : null);
+                  const traefikConfig = () => (isTraefikConfig(action.config) ? action.config : null);
+                  const delivery = () => deliveryStatus()?.[action.actionId];
                   return (
                   <Card>
                     <CardContent class="space-y-3 p-4">
@@ -226,17 +257,33 @@ export default function Actions() {
                         <span class="text-xs text-muted-foreground">{STATUS_LABEL[action.status]}</span>
                       </div>
                       <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                        <Show
-                          when={firewallConfig()}
-                          fallback={
+                        <Show when={traefikConfig()}>
+                          {(tc) => (
                             <>
-                              <dt class="text-muted-foreground">Zone</dt>
-                              <dd>{dnsConfig()?.zone}</dd>
-                              <dt class="text-muted-foreground">Record</dt>
-                              <dd>{dnsConfig()?.recordName}</dd>
+                              <dt class="text-muted-foreground">Provider</dt>
+                              <dd>{delivery()?.providerName ?? tc().traefikProviderId}</dd>
+                              <dt class="text-muted-foreground">Group</dt>
+                              <dd>{tc().group}</dd>
+                              <Show when={delivery()}>
+                                {(d) => (
+                                  <>
+                                    <dt class="text-muted-foreground">Delivery</dt>
+                                    <dd
+                                      class={d().status === "error" ? "text-destructive" : ""}
+                                      title={d().error?.reason}
+                                    >
+                                      {DELIVERY_LABEL[d().status]}
+                                      <Show when={d().status === "error" && d().error}>
+                                        {(e) => <span class="block text-xs">{e().reason}</span>}
+                                      </Show>
+                                    </dd>
+                                  </>
+                                )}
+                              </Show>
                             </>
-                          }
-                        >
+                          )}
+                        </Show>
+                        <Show when={firewallConfig()}>
                           {(fw) => (
                             <>
                               <dt class="text-muted-foreground">Firewall</dt>
@@ -246,12 +293,24 @@ export default function Actions() {
                             </>
                           )}
                         </Show>
+                        <Show when={dnsConfig()}>
+                          {(dns) => (
+                            <>
+                              <dt class="text-muted-foreground">Zone</dt>
+                              <dd>{dns().zone}</dd>
+                              <dt class="text-muted-foreground">Record</dt>
+                              <dd>{dns().recordName}</dd>
+                            </>
+                          )}
+                        </Show>
                         <dt class="text-muted-foreground">Families</dt>
                         <dd>{formatAddressFamilies(action.addressFamilies)}</dd>
                       </dl>
-                      <a href={`/actions/${action.actionId}/executions`} class="text-sm hover:underline">
-                        View history
-                      </a>
+                      <Show when={action.type !== "traefik_config_delivery"}>
+                        <a href={`/actions/${action.actionId}/executions`} class="text-sm hover:underline">
+                          View history
+                        </a>
+                      </Show>
                       <Show when={action.status !== "detached"}>
                         <div class="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" onClick={() => setWizardTarget(toExistingAction(action))}>

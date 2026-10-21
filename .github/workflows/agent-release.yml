@@ -1,0 +1,106 @@
+name: Agent release
+
+# The agent ships separately from the backend image (FR-062): own version line, own tags (agent-vX.Y.Z),
+# binaries as release assets, optional minimal image on GHCR.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent/**"
+      - "proto/**"
+      - ".github/workflows/agent-release.yml"
+      - ".github/scripts/determine-agent-version.mjs"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: [self-hosted,linux,ubuntu,home-1,fluxip]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags, needed to find the previous agent-v* tag.
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+
+      - name: Vet and test
+        working-directory: agent
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install release tooling
+        run: pnpm install --frozen-lockfile --filter fluxip...
+
+      - name: Determine version
+        id: version
+        run: node .github/scripts/determine-agent-version.mjs
+
+      - name: Build binaries
+        if: steps.version.outputs.should-release == 'true'
+        run: |
+          set -e
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            (cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=$arch \
+              go build -trimpath -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}" \
+              -o ../dist/fluxip-agent-linux-$arch ./cmd/fluxip-agent)
+            size=$(stat -c %s dist/fluxip-agent-linux-$arch)
+            echo "fluxip-agent-linux-$arch: $size bytes"
+            # SC-005: the binary stays under 30 MB.
+            test "$size" -lt $((30 * 1024 * 1024))
+          done
+          (cd dist && sha256sum fluxip-agent-linux-* > SHA256SUMS)
+
+      - name: Log in to GHCR
+        if: steps.version.outputs.should-release == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: steps.version.outputs.should-release == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push multi-arch agent image
+        if: steps.version.outputs.should-release == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/fluxip-agent:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/fluxip-agent:latest
+
+      # Last step: the tag and release are only created once binaries and image are done.
+      - name: Create Git tag and GitHub Release
+        if: steps.version.outputs.should-release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.git-tag }}" dist/* \
+            --title "FluxIP agent ${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            --target "${{ github.sha }}"

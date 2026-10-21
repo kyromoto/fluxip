@@ -1,7 +1,7 @@
 import type { Queue } from "bullmq";
 import { ulid } from "ulid";
 import { actionReducer, initialActionState } from "../../domain/action/action-aggregate.js";
-import { ACTION_AGGREGATE_TYPE } from "../../domain/action/events.js";
+import { ACTION_AGGREGATE_TYPE, TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE } from "../../domain/action/events.js";
 import type { IpValuesUsed, TriggeredBy } from "../../domain/action-execution/events.js";
 import { loadAggregate } from "../../domain/replay.js";
 import { getAppLogger } from "../../observability/app-logger.js";
@@ -40,6 +40,8 @@ export async function fanOutActionExecutions(
       actionReducer,
     );
     if (state.ipClientId !== params.ipClientId || state.status !== "enabled") continue;
+    // Traefik delivery is state-based: it is picked up by the snapshot publisher, not run as an execution.
+    if (state.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE) continue;
 
     // BullMQ custom job IDs cannot contain ":" (it uses colons as its own Redis key separator).
     const jobId = `exec-${params.causationEventId}-${actionId}`;

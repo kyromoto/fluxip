@@ -73,6 +73,7 @@ const ROUTES: RouteMeta[] = [
     },
   },
   { pattern: "/credentials", resolve: () => [{ label: "Credentials" }] },
+  { pattern: "/traefik-providers", resolve: () => [{ label: "Traefik providers" }] },
   { pattern: "/notifications", resolve: () => [{ label: "Notifications" }] },
   { pattern: "/account", resolve: () => [{ label: "Account" }] },
 ];

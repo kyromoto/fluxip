@@ -26,6 +26,18 @@ export interface Config {
   accessLogFilePath: string;
   accessLogMaxSizeBytes: number;
   accessLogMaxFiles: number;
+  /** Port of the agent session listener (gRPC over h2c, behind the reverse proxy) — specs/008-traefik-provider-config. */
+  agentPort: number;
+  /** Public base URL agents use to reach FluxIP (e.g. https://agents.example.com); empty = Traefik providers can't be created. */
+  agentPublicUrl: string;
+  /** Hard cap on a serialized snapshot (FR-024). */
+  agentSnapshotMaxBytes: number;
+  /** Window in which several change triggers for one provider collapse into one snapshot (FR-022). */
+  agentSnapshotCoalesceMs: number;
+  /** Interval of the periodic full-state resend to connected agents (FR-021). */
+  agentResyncMs: number;
+  /** Heartbeat interval proposed to agents. */
+  agentHeartbeatSeconds: number;
 }
 
 const REQUIRED_STRING_VARS = [
@@ -97,5 +109,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     accessLogFilePath: optionalString(env, "BACKEND_ACCESS_LOG_FILE_PATH", "logs/access.log"),
     accessLogMaxSizeBytes: optionalInt(env, "BACKEND_ACCESS_LOG_MAX_SIZE_BYTES", 10_485_760),
     accessLogMaxFiles: optionalInt(env, "BACKEND_ACCESS_LOG_MAX_FILES", 5),
+    agentPort: optionalInt(env, "BACKEND_AGENT_PORT", 8081),
+    agentPublicUrl: optionalString(env, "BACKEND_AGENT_PUBLIC_URL").replace(/\/+$/, ""),
+    agentSnapshotMaxBytes: optionalInt(env, "BACKEND_AGENT_SNAPSHOT_MAX_BYTES", 1_048_576),
+    agentSnapshotCoalesceMs: optionalInt(env, "BACKEND_AGENT_SNAPSHOT_COALESCE_MS", 1000),
+    agentResyncMs: optionalInt(env, "BACKEND_AGENT_RESYNC_MS", 900_000),
+    agentHeartbeatSeconds: optionalInt(env, "BACKEND_AGENT_HEARTBEAT_SECONDS", 30),
   };
 }

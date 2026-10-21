@@ -32,6 +32,13 @@ export interface AccountClosureServiceDeps {
   redis: Redis;
   debounceQueue: Queue<{ accountId: string }>;
   actionExecutionQueue: Queue<{ accountId: string }>;
+  /** Live agent sessions of the account are ended before its data disappears. */
+  sessions?: {
+    terminateByAccount(
+      accountId: string,
+      reason: { code: "unavailable"; message: string; disconnect: "closed" },
+    ): number;
+  };
 }
 
 /**
@@ -66,6 +73,7 @@ export class AccountClosureService {
       data: built.data,
     });
 
+    this.deps.sessions?.terminateByAccount(accountId, { code: "unavailable", message: "this account was closed", disconnect: "closed" });
     await purgeQueueJobsForAccount(this.deps.debounceQueue, accountId);
     await purgeQueueJobsForAccount(this.deps.actionExecutionQueue, accountId);
     await purgeProjectionKeysForAccount(this.deps.redis, accountId);

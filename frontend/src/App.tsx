@@ -6,6 +6,7 @@ const IpClients = lazy(() => import("./pages/IpClients"));
 const DeviceHistory = lazy(() => import("./pages/DeviceHistory"));
 const Actions = lazy(() => import("./pages/Actions"));
 const Credentials = lazy(() => import("./pages/Credentials"));
+const TraefikProviders = lazy(() => import("./pages/TraefikProviders"));
 const Account = lazy(() => import("./pages/Account"));
 const ExecutionHistory = lazy(() => import("./pages/ExecutionHistory"));
 const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/ip-clients/:ipClientId/history" component={DeviceHistory} />
         <Route path="/actions/:actionId/executions" component={ExecutionHistory} />
         <Route path="/credentials" component={Credentials} />
+        <Route path="/traefik-providers" component={TraefikProviders} />
         <Route path="/notifications" component={NotificationSettings} />
         <Route path="/account" component={Account} />
       </Route>

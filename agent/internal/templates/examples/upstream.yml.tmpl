@@ -1,0 +1,21 @@
+{{- /*
+  Service whose upstream is the current IPv4 address of every device in the group "homelab".
+  The port is part of the template, FluxIP only delivers addresses.
+  Reference it in a router as: homelab@file
+  Without devices (or with stale data) the service points at a placeholder that refuses connections,
+  so Traefik answers with a clean 502/503 instead of rejecting the file.
+*/ -}}
+# fluxip:expect service homelab@file
+{{- $ips := ipv4 (group .Groups "homelab") }}
+http:
+  services:
+    homelab:
+      loadBalancer:
+        servers:
+{{- if and $ips (not .Stale) }}
+{{- range $ips }}
+          - url: {{ printf "http://%s:8080" . | quote }}
+{{- end }}
+{{- else }}
+          - url: "http://127.0.0.1:9" # fallback: no data or data too old
+{{- end }}

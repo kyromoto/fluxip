@@ -2,7 +2,7 @@ import type { Queue } from "bullmq";
 import { Hono } from "hono";
 import { ulid } from "ulid";
 import { actionReducer, initialActionState } from "../../../domain/action/action-aggregate.js";
-import { ACTION_AGGREGATE_TYPE } from "../../../domain/action/events.js";
+import { ACTION_AGGREGATE_TYPE, TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE } from "../../../domain/action/events.js";
 import { IP_CLIENT_AGGREGATE_TYPE } from "../../../domain/ip-client/events.js";
 import { initialIpClientState, ipClientReducer } from "../../../domain/ip-client/ip-client-aggregate.js";
 import { loadAggregate } from "../../../domain/replay.js";
@@ -40,6 +40,9 @@ export function createActionRunRoutes(deps: ActionRunRouteDeps): Hono {
     );
     if (!actionState.actionId || actionState.accountId !== auth.accountId) {
       return c.json({ error: "not found" }, 404);
+    }
+    if (actionState.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE) {
+      return c.json({ error: "not_runnable", message: "Traefik delivery actions are state-based and have nothing to run manually." }, 409);
     }
     if (actionState.status !== "enabled" || !actionState.ipClientId) {
       return c.json({ error: "Action is not enabled" }, 409);

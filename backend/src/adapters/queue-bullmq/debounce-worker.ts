@@ -11,6 +11,8 @@ import {
 } from "../../domain/ip-client/events.js";
 import { initialIpClientState, ipClientReducer } from "../../domain/ip-client/ip-client-aggregate.js";
 import { loadAggregate } from "../../domain/replay.js";
+import { providersOfDevice } from "../../domain/traefik-provider/delivery-actions.js";
+import type { SnapshotScheduler } from "../../domain/traefik-provider/snapshot-scheduler.js";
 import { getAppLogger, withOperation } from "../../observability/app-logger.js";
 import type { EventStore } from "../../ports/event-store.js";
 import { upsertIpClientProjection } from "../../projections/ip-clients-projection.js";
@@ -26,6 +28,8 @@ export interface DebounceWorkerDeps {
   eventStore: EventStore;
   redis: Redis;
   actionExecutionQueue: Queue<ActionExecutionJobData>;
+  /** Recomputes Traefik provider snapshots after a confirmed IP change (US3). */
+  snapshots?: SnapshotScheduler;
 }
 
 /**
@@ -95,6 +99,11 @@ export function createDebounceWorker(deps: DebounceWorkerDeps): Worker<DebounceJ
 
           const updatedState = ipClientReducer(state, causationEvent);
           await upsertIpClientProjection(deps.redis, accountId, updatedState);
+
+          if (deps.snapshots) {
+            const providerIds = await providersOfDevice(deps.eventStore, accountId, ipClientId);
+            if (providerIds.length > 0) await deps.snapshots.schedule(accountId, providerIds, causationEvent.id);
+          }
 
           await fanOutActionExecutions(deps.eventStore, deps.actionExecutionQueue, {
             accountId,

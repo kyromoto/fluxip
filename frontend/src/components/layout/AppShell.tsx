@@ -8,6 +8,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 const NAV_LINKS = [
   { href: "/ip-clients", label: "Devices" },
   { href: "/credentials", label: "Credentials" },
+  { href: "/traefik-providers", label: "Traefik" },
   { href: "/notifications", label: "Notifications" },
   { href: "/account", label: "Account" },
 ];

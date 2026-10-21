@@ -12,6 +12,7 @@ See `specs/001-ip-change-automation/` for the full spec (`spec.md`), architectur
 - **Projections**: Redis read models (device lists, execution history) — always rebuildable from Postgres, never consulted for business decisions.
 - **Auth**: [Logto](https://logto.io/) as the OIDC identity provider — FluxIP verifies JWTs via JWKS and never stores a password. In-app password change/account deletion are proxied to Logto's Management API.
 - **Frontend**: SolidJS + Vite, styled with Tailwind CSS and [Kobalte](https://kobalte.dev/)/[Solid UI](https://www.solid-ui.com/) components (copied into the repo, not installed as a library) — auto dark/light via Tailwind's `media` strategy, no manual toggle. Account onboarding, Trigger Device creation, and Action configuration are guided multi-step flows; everything else stays a direct, single-step view. See `specs/003-end-user-ui-redesign/` for the full spec/plan/research.
+- **Traefik agents** (`agent/`, `specs/008-traefik-provider-config/`): a small Go binary next to a remote Traefik receives each provider's devices and IPs from FluxIP over a long-lived gRPC session, renders local templates, and writes the result atomically into Traefik's file-provider directory. See [Traefik agents](#traefik-agents).
 - **Metrics**: Prometheus-compatible `/metrics`, including per-aggregate replay duration/event-count histograms (`fluxip_replay_duration_seconds`, `fluxip_replay_events_total`), so aggregates that get slower to replay over time are visible before snapshotting is ever needed.
 
 ## Prerequisites
@@ -102,10 +103,47 @@ pnpm run dev:backend                         # backend on :8080 (tsx watch)
 pnpm run dev:frontend                        # frontend on :5173 (Vite dev server)
 ```
 
+## Traefik agents
+
+FluxIP can keep dynamic Traefik configuration up to date on remote systems — typically an `ipAllowList` middleware that contains the current IPs of your devices. It only delivers data; **local templates on the agent decide the file format**, so the same mechanism also works for, say, a service whose upstream is a device's IP.
+
+**How it fits together**
+
+1. In the UI, add a **Traefik provider** (one per agent / Traefik). FluxIP shows the agent address, a token (once) and a start command.
+2. On a device, add the action **Traefik configuration**, choose the provider and a *group* (for example `admin-allowlist`). Devices with the same provider and group end up in the same list. A device can deliver to a given provider through one action; it can deliver to several providers.
+3. Run the agent next to Traefik. It connects **outbound only** (no open ports), receives a complete snapshot, renders every `*.tmpl` file in its template directory and writes `fluxip-<name>.yml|yaml|toml` into Traefik's file-provider directory.
+
+```bash
+fluxip-agent templates --write /etc/fluxip-agent/templates        # allowlist + upstream examples
+FLUXIP_ADDRESS=https://agents.example.com/<providerId> FLUXIP_TOKEN=fxt_... \
+FLUXIP_TEMPLATES_DIR=/etc/fluxip-agent/templates FLUXIP_OUTPUT_DIR=/etc/traefik/dynamic \
+  fluxip-agent run
+```
+
+Traefik needs a file provider with `watch: true` on that directory; reference the generated objects as `<name>@file`.
+
+**Safety properties** (all covered by tests): files are replaced atomically and only when the content changed; all templates are validated before any file is touched; only files with the agent's prefix (default `fluxip-`) are ever read, written or deleted; an agent restart without FluxIP keeps the existing files; after `FLUXIP_MAX_OFFLINE` (default 24 h, measured with the monotonic clock) the templates are rendered again with `.Stale` set so old addresses don't stay allowed. The bundled allow-list template falls back to `127.0.0.1/32` for an empty or stale group — Traefik 3 disables a middleware with an empty `sourceRange`, which would make the route answer 404 instead of 403.
+
+**Template data**: `.Provider`, `.Version`, `.Time`, `.Stale`, `.Groups` (map of group → entries with `.Name`, `.IPs`, `.IPv4`, `.IPv6`; a missing group is empty) and the helpers `cidr`, `cidrs`, `ipv4`, `ipv6`, `join`, `quote`, `group`, `first`, `default`. Full reference: `specs/008-traefik-provider-config/contracts/agent-cli.md`.
+
+**Operating FluxIP for agents**
+
+| Name | Default | Description |
+|---|---|---|
+| `BACKEND_AGENT_PORT` | `8081` | Port of the agent session listener (gRPC over h2c). Put a reverse-proxy router with an **h2c backend** in front of it (example: [`deploy/traefik/agents-router.example.yml`](deploy/traefik/agents-router.example.yml)) and give agents the public URL. |
+| `BACKEND_AGENT_PUBLIC_URL` | — | Public base URL agents use, e.g. `https://agents.example.com`. Providers can't be created while it is empty. |
+| `BACKEND_AGENT_SNAPSHOT_MAX_BYTES` | `1048576` | Largest snapshot FluxIP will send; beyond it the provider shows an error and the agent keeps its last files. |
+| `BACKEND_AGENT_SNAPSHOT_COALESCE_MS` / `_RESYNC_MS` / `_HEARTBEAT_SECONDS` | `1000` / `900000` / `30` | Collapse window for change bursts, periodic full resend, session heartbeat. |
+
+- **One backend instance.** Live agent sessions are held in memory, so running several backend replicas is not supported yet.
+- **Reverse proxy timeouts.** A session is one long HTTP/2 stream. Traefik's default `readTimeout` (60 s) resets it after exactly one minute — the agent reconnects by itself, but the connection flaps. Set `respondingTimeouts.readTimeout: 0` on the entrypoint agents use (verified with Traefik v3.3); the example above shows a dedicated entrypoint. Heartbeats every 30 s keep the stream busy otherwise.
+- **Releases.** The agent is released separately from the image: [`agent-release.yml`](.github/workflows/agent-release.yml) publishes `fluxip-agent-linux-{amd64,arm64}` plus `SHA256SUMS` as assets of an `agent-vX.Y.Z` release (and an optional `ghcr.io/<owner>/fluxip-agent` image). Its version follows Conventional Commits on `agent/` and `proto/`; commits scoped `agent` don't bump the backend release.
+
 ## Testing
 
 ```bash
 pnpm --filter fluxip-backend test
+(cd agent && go test ./...)        # agent: renderer, atomic writes, offline timer, end-to-end against a scripted server
 ```
 
 Backend tests are real integration tests against Postgres/Redis/BullMQ (Testcontainers-style — no mocked event store or queue), so `docker compose up -d postgres redis` (or equivalent) must be running first, with `BACKEND_DATABASE_URL`/`BACKEND_REDIS_URL` pointed at them. Test files run sequentially (`fileParallelism: false` in `vitest.config.ts`) since they register real BullMQ workers on the same production-named queues.
@@ -150,6 +188,8 @@ git push origin v0.1.0
 ## Project structure
 
 ```
+agent/      Go agent for Traefik hosts (templates → atomic files), shares only proto/ with the backend
+proto/      Agent session protocol (.proto), the one contract shared between backend and agent
 backend/    Hono API, event-sourced domain model, BullMQ workers, adapters (Postgres, Logto, Hetzner DNS, email)
 frontend/   SolidJS UI (devices, actions, execution history, notifications, account settings) — Tailwind/Kobalte/Solid UI, guided wizards for onboarding/device/action setup
 specs/      Spec-Kit artifacts: spec, plan, research, data model, contracts, tasks

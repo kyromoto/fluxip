@@ -13,6 +13,11 @@ const ACTION_TYPE_OPTIONS: { type: ActionType; title: string; description: strin
     title: "Hetzner Cloud Firewall Rule Update",
     description: "Keep a Hetzner Cloud Firewall rule's source address pointed at this device's current address.",
   },
+  {
+    type: "traefik_config_delivery",
+    title: "Traefik configuration",
+    description: "Send this device's current address to a Traefik agent, for example to keep an IP allow-list up to date.",
+  },
 ];
 
 export const ChooseActionTypeStep: Component<WizardStepComponentProps<ActionWizardData>> = (props) => {

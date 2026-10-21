@@ -7,7 +7,10 @@ import type { Config } from "../../config/env.js";
 import { createAccessLogMiddleware } from "../../observability/access-log.js";
 import type { ActionExecutionJobData } from "../queue-bullmq/action-execution-worker.js";
 import type { DebounceJobData } from "../queue-bullmq/debounce-scheduler.js";
+import type { SnapshotScheduler } from "../../domain/traefik-provider/snapshot-scheduler.js";
+import type { ProviderStore } from "../../domain/traefik-provider/provider-store.js";
 import type { EventStore } from "../../ports/event-store.js";
+import type { SessionRegistry } from "../agent-grpc/session-registry.js";
 import { requireAdminRole } from "../auth-logto/admin-guard.js";
 import { getAuth, oidcAuthMiddleware } from "../auth-logto/oidc-middleware.js";
 import { createAccountRoutes } from "./routes/account.js";
@@ -19,6 +22,8 @@ import { createIpClientHistoryRoutes } from "./routes/ip-client-history.js";
 import { createIpClientsRoutes } from "./routes/ip-clients.js";
 import { createNotificationChannelRoutes } from "./routes/notification-channel.js";
 import { createProviderCredentialsRoutes } from "./routes/provider-credentials.js";
+import { createDeliveryStatusRoutes } from "./routes/delivery-status.js";
+import { createTraefikProvidersRoutes } from "./routes/traefik-providers.js";
 import { createTriggerRoutes } from "./routes/trigger.js";
 import { metricsRoute } from "./metrics-route.js";
 
@@ -30,6 +35,9 @@ export interface AppDependencies {
   accountClosureService: AccountClosureService;
   debounceQueue: Queue<DebounceJobData>;
   actionExecutionQueue: Queue<ActionExecutionJobData>;
+  providerStore: ProviderStore;
+  sessionRegistry: SessionRegistry;
+  snapshots: SnapshotScheduler;
 }
 
 export interface CreatedApp {
@@ -69,6 +77,7 @@ export function createApp(deps: AppDependencies): CreatedApp {
       eventStore: deps.eventStore,
       redis: deps.redis,
       accountService: deps.accountService,
+      snapshots: deps.snapshots,
     }),
   );
   api.route(
@@ -76,8 +85,27 @@ export function createApp(deps: AppDependencies): CreatedApp {
     createProviderCredentialsRoutes({ config: deps.config, eventStore: deps.eventStore }),
   );
   api.route(
+    "/traefik-providers",
+    createTraefikProvidersRoutes({
+      config: deps.config,
+      eventStore: deps.eventStore,
+      store: deps.providerStore,
+      registry: deps.sessionRegistry,
+    }),
+  );
+  api.route(
     "/",
-    createActionsRoutes({ config: deps.config, eventStore: deps.eventStore, redis: deps.redis }),
+    createDeliveryStatusRoutes({ eventStore: deps.eventStore, store: deps.providerStore, registry: deps.sessionRegistry }),
+  );
+  api.route(
+    "/",
+    createActionsRoutes({
+      config: deps.config,
+      eventStore: deps.eventStore,
+      redis: deps.redis,
+      providerStore: deps.providerStore,
+      snapshots: deps.snapshots,
+    }),
   );
   api.route("/", createActionExecutionsRoutes({ eventStore: deps.eventStore, redis: deps.redis }));
   api.route("/", createActionRunRoutes({ eventStore: deps.eventStore, actionExecutionQueue: deps.actionExecutionQueue }));

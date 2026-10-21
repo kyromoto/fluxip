@@ -1,14 +1,16 @@
 import { Show, untrack, type Component } from "solid-js";
 import { useWizard, type WizardDefinition, type WizardStepComponentProps } from "~/flows/wizard/useWizard";
 import { WizardShell } from "~/flows/wizard/WizardShell";
+import { GROUP_PATTERN } from "~/lib/traefik-providers";
 import { api } from "~/services/api";
 import { AddressFamilyStep } from "./steps/AddressFamilyStep";
 import { ChooseActionTypeStep } from "./steps/ChooseActionTypeStep";
 import { DnsTargetStep } from "./steps/DnsTargetStep";
 import { FirewallRuleTargetStep } from "./steps/FirewallRuleTargetStep";
 import { ReviewActionStep } from "./steps/ReviewActionStep";
+import { TraefikDeliveryStep } from "./steps/TraefikDeliveryStep";
 
-export type ActionType = "hetzner_cloud_dns_update" | "hetzner_cloud_firewall_rule_update";
+export type ActionType = "hetzner_cloud_dns_update" | "hetzner_cloud_firewall_rule_update" | "traefik_config_delivery";
 export type FirewallDirection = "in" | "out";
 export type FirewallProtocol = "tcp" | "udp" | "icmp" | "esp" | "ah" | "gre";
 
@@ -24,6 +26,9 @@ export interface ActionWizardData {
   protocol: FirewallProtocol;
   port: string;
   description: string;
+  // traefik_config_delivery fields
+  traefikProviderId: string;
+  group: string;
   // shared (FR-004)
   ipv4: boolean;
   ipv6: boolean;
@@ -40,6 +45,8 @@ export interface ExistingAction {
   protocol: FirewallProtocol;
   port: string;
   description: string;
+  traefikProviderId: string;
+  group: string;
   ipv4: boolean;
   ipv6: boolean;
 }
@@ -53,10 +60,15 @@ interface ActionWizardProps {
   onCancel: () => void;
 }
 
-/** Renders the DNS or Firewall target step based on the chosen Action type (FR-015 — same flow, no redesign). */
+/** Renders the target step matching the chosen Action type (FR-015 — same flow, no redesign). */
 const TargetStep: Component<WizardStepComponentProps<ActionWizardData>> = (props) => (
-  <Show when={props.data.type === "hetzner_cloud_dns_update"} fallback={<FirewallRuleTargetStep {...props} />}>
-    <DnsTargetStep {...props} />
+  <Show
+    when={props.data.type !== "traefik_config_delivery"}
+    fallback={<TraefikDeliveryStep {...props} />}
+  >
+    <Show when={props.data.type === "hetzner_cloud_dns_update"} fallback={<FirewallRuleTargetStep {...props} />}>
+      <DnsTargetStep {...props} />
+    </Show>
   </Show>
 );
 
@@ -82,6 +94,8 @@ export function ActionWizard(props: ActionWizardProps) {
         protocol: "tcp",
         port: "",
         description: "",
+        traefikProviderId: "",
+        group: "",
         ipv4: true,
         ipv6: false,
       };
@@ -96,26 +110,31 @@ export function ActionWizard(props: ActionWizardProps) {
         title: "Target",
         component: TargetStep,
         isValid: (d) =>
-          d.type === "hetzner_cloud_dns_update"
-            ? d.providerCredentialId.length > 0 && d.zone.trim().length > 0 && d.recordName.trim().length > 0
-            : d.providerCredentialId.length > 0 &&
-              d.firewallId.trim().length > 0 &&
-              d.direction.length > 0 &&
-              d.protocol.length > 0 &&
-              d.description.trim().length > 0,
+          d.type === "traefik_config_delivery"
+            ? d.traefikProviderId.length > 0 && GROUP_PATTERN.test(d.group.trim())
+            : d.type === "hetzner_cloud_dns_update"
+              ? d.providerCredentialId.length > 0 && d.zone.trim().length > 0 && d.recordName.trim().length > 0
+              : d.providerCredentialId.length > 0 &&
+                d.firewallId.trim().length > 0 &&
+                d.direction.length > 0 &&
+                d.protocol.length > 0 &&
+                d.description.trim().length > 0,
       },
       {
         id: "address-family",
         title: "Address family",
         component: AddressFamilyStep,
-        isValid: (d) => d.ipv4 || d.ipv6,
+        // A Traefik delivery always carries every address the device has, so there is nothing to choose.
+        isValid: (d) => d.type === "traefik_config_delivery" || d.ipv4 || d.ipv6,
       },
       { id: "review", title: "Review", component: ReviewActionStep, isValid: () => true },
     ],
     onComplete: async (data) => {
       const addressFamilies = [data.ipv4 && "ipv4", data.ipv6 && "ipv6"].filter(Boolean);
       const config =
-        data.type === "hetzner_cloud_dns_update"
+        data.type === "traefik_config_delivery"
+          ? { traefikProviderId: data.traefikProviderId, group: data.group.trim() }
+          : data.type === "hetzner_cloud_dns_update"
           ? { providerCredentialId: data.providerCredentialId, zone: data.zone, recordName: data.recordName }
           : {
               providerCredentialId: data.providerCredentialId,

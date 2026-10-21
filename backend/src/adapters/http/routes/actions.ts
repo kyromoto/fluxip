@@ -8,6 +8,8 @@ import {
   ActionEventName,
   HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE,
   HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE,
+  TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE,
+  hasProviderCredential,
   type ActionAttachedData,
   type ActionConfig,
   type ActionDetachedData,
@@ -15,6 +17,7 @@ import {
   type ActionEnabledData,
   type ActionReconfiguredData,
   type AddressFamily,
+  type TraefikConfigDeliveryConfig,
   type UpdateDnsRecordConfig,
   type UpdateFirewallRuleConfig,
 } from "../../../domain/action/events.js";
@@ -24,6 +27,11 @@ import {
   initialProviderCredentialState,
   providerCredentialReducer,
 } from "../../../domain/provider-credential/provider-credential-aggregate.js";
+import { listDeliveryActions } from "../../../domain/traefik-provider/delivery-actions.js";
+import type { ProviderStore } from "../../../domain/traefik-provider/provider-store.js";
+import { GROUP_PATTERN, type SnapshotScheduler } from "../../../domain/traefik-provider/snapshot-scheduler.js";
+import { IP_CLIENT_AGGREGATE_TYPE } from "../../../domain/ip-client/events.js";
+import { initialIpClientState, ipClientReducer } from "../../../domain/ip-client/ip-client-aggregate.js";
 import { PROVIDER_CREDENTIAL_AGGREGATE_TYPE } from "../../../domain/provider-credential/events.js";
 import { decryptSecret } from "../../../domain/provider-credential/secret-encryption.js";
 import { loadAggregate } from "../../../domain/replay.js";
@@ -40,6 +48,72 @@ export interface ActionsRouteDeps {
   config: Config;
   eventStore: EventStore;
   redis: Redis;
+  /** Needed for Traefik delivery actions (validation of the target provider). */
+  providerStore?: ProviderStore;
+  /** Asks for provider snapshots to be recomputed after an action change (FR-013). */
+  snapshots?: SnapshotScheduler;
+}
+
+/** Providers whose snapshot an action change affects: the action's current one, plus the previous one on a move. */
+async function scheduleDelivery(deps: ActionsRouteDeps, accountId: string, ...states: (ActionState | null)[]): Promise<void> {
+  if (!deps.snapshots) return;
+  const ids = new Set<string>();
+  for (const state of states) {
+    if (state?.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE && state.config && "traefikProviderId" in state.config) {
+      ids.add(state.config.traefikProviderId);
+    }
+  }
+  if (ids.size > 0) await deps.snapshots.schedule(accountId, [...ids]);
+}
+
+async function currentState(deps: ActionsRouteDeps, accountId: string, actionId: string): Promise<ActionState> {
+  const { state } = await loadAggregate(
+    deps.eventStore,
+    { accountId, aggregateType: ACTION_AGGREGATE_TYPE, aggregateId: actionId },
+    initialActionState,
+    actionReducer,
+  );
+  return state;
+}
+
+type DeliveryValidation = { ok: true; config: TraefikConfigDeliveryConfig } | { ok: false; status: 404 | 409 | 422 | 500; body: Record<string, unknown> };
+
+/**
+ * FR-004/FR-010/FR-011: the provider must be an active one of this account, the group well-formed, and a
+ * device may deliver to a given provider through at most one (non-detached) action.
+ */
+async function validateDeliveryConfig(
+  deps: ActionsRouteDeps,
+  accountId: string,
+  ipClientId: string,
+  raw: unknown,
+  ignoreActionId?: string,
+): Promise<DeliveryValidation> {
+  if (!deps.providerStore) return { ok: false, status: 500, body: { error: "traefik providers are not available" } };
+  const candidate = (raw ?? {}) as Partial<TraefikConfigDeliveryConfig>;
+  const traefikProviderId = typeof candidate.traefikProviderId === "string" ? candidate.traefikProviderId : "";
+  const group = typeof candidate.group === "string" ? candidate.group.trim() : "";
+  if (!traefikProviderId) return { ok: false, status: 422, body: { error: "config.traefikProviderId is required" } };
+  if (!GROUP_PATTERN.test(group)) {
+    return {
+      ok: false,
+      status: 422,
+      body: { error: "invalid_group", message: "A group is 1-63 characters: lowercase letters, digits, '.', '_' or '-', starting with a letter or digit." },
+    };
+  }
+  const provider = await deps.providerStore.loadActive(accountId, traefikProviderId);
+  if (!provider) return { ok: false, status: 404, body: { error: "traefik_provider_not_found" } };
+
+  const existing = await listDeliveryActions(deps.eventStore, accountId);
+  const clash = existing.find((a) => a.ipClientId === ipClientId && a.traefikProviderId === traefikProviderId && a.actionId !== ignoreActionId);
+  if (clash) {
+    return {
+      ok: false,
+      status: 409,
+      body: { error: "delivery_action_exists", message: "This device already delivers to this provider.", actionId: clash.actionId },
+    };
+  }
+  return { ok: true, config: { traefikProviderId, group } };
 }
 
 async function refreshProjection(deps: ActionsRouteDeps, accountId: string, actionId: string): Promise<void> {
@@ -181,23 +255,44 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       .json<{
         type?: string;
         addressFamilies?: AddressFamily[];
-        config?: UpdateDnsRecordConfig | UpdateFirewallRuleConfig;
+        config?: UpdateDnsRecordConfig | UpdateFirewallRuleConfig | TraefikConfigDeliveryConfig;
       }>()
       .catch(() => ({}) as Record<string, never>);
 
-    if (body.type !== HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE && body.type !== HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE) {
+    if (
+      body.type !== HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE &&
+      body.type !== HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE &&
+      body.type !== TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE
+    ) {
       return c.json(
         {
-          error: `unsupported action type; must be "${HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE}" or "${HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE}"`,
+          error: `unsupported action type; must be "${HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE}", "${HETZNER_CLOUD_FIREWALL_RULE_UPDATE_ACTION_TYPE}" or "${TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE}"`,
         },
         400,
       );
     }
-    if (!body.addressFamilies || body.addressFamilies.length === 0) {
+    // A Traefik delivery action always delivers every address the device has, so the families are implied.
+    const addressFamilies: AddressFamily[] | undefined =
+      body.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE ? ["ipv4", "ipv6"] : body.addressFamilies;
+    if (!addressFamilies || addressFamilies.length === 0) {
       return c.json({ error: "addressFamilies must be a non-empty array of \"ipv4\"/\"ipv6\"" }, 400);
     }
 
-    if (body.type === HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE) {
+    let actionConfig = body.config as ActionConfig | undefined;
+    if (body.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE) {
+      const { state: device } = await loadAggregate(
+        deps.eventStore,
+        { accountId: auth.accountId, aggregateType: IP_CLIENT_AGGREGATE_TYPE, aggregateId: ipClientId },
+        initialIpClientState,
+        ipClientReducer,
+      );
+      if (!device.ipClientId || device.accountId !== auth.accountId || device.status === "decommissioned") {
+        return c.json({ error: "not found" }, 404);
+      }
+      const validation = await validateDeliveryConfig(deps, auth.accountId, ipClientId, body.config);
+      if (!validation.ok) return c.json(validation.body, validation.status);
+      actionConfig = validation.config;
+    } else if (body.type === HETZNER_CLOUD_DNS_UPDATE_ACTION_TYPE) {
       const config = body.config as UpdateDnsRecordConfig | undefined;
       if (!config?.providerCredentialId || !config.zone || !config.recordName) {
         return c.json({ error: "config.providerCredentialId, zone, and recordName are required" }, 400);
@@ -224,8 +319,8 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       accountId: auth.accountId,
       ipClientId,
       type: body.type,
-      addressFamilies: body.addressFamilies,
-      config: body.config as ActionConfig,
+      addressFamilies,
+      config: actionConfig as ActionConfig,
       attachedAt: new Date().toISOString(),
     };
     const built = buildDomainEvent(deps.config, ACTION_AGGREGATE_TYPE, ActionEventName.Attached, data);
@@ -244,6 +339,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
     });
 
     await refreshProjection(deps, auth.accountId, actionId);
+    await scheduleDelivery(deps, auth.accountId, await currentState(deps, auth.accountId, actionId));
 
     return c.json({ actionId }, 201);
   });
@@ -262,13 +358,24 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
     if (!owned) return c.json({ error: "not found" }, 404);
 
     const body = await c.req
-      .json<{ addressFamilies?: AddressFamily[]; config?: UpdateDnsRecordConfig | UpdateFirewallRuleConfig }>()
+      .json<{
+        addressFamilies?: AddressFamily[];
+        config?: UpdateDnsRecordConfig | UpdateFirewallRuleConfig | TraefikConfigDeliveryConfig;
+      }>()
       .catch(() => ({}) as Record<string, never>);
 
     if (body.addressFamilies !== undefined && body.addressFamilies.length === 0) {
       return c.json({ error: "addressFamilies, if provided, must be a non-empty array" }, 400);
     }
-    if (body.config !== undefined) {
+    let reconfiguredConfig = body.config as ActionConfig | undefined;
+    if (owned.state.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE) {
+      if (body.config !== undefined) {
+        const validation = await validateDeliveryConfig(deps, auth.accountId, owned.state.ipClientId ?? "", body.config, actionId);
+        if (!validation.ok) return c.json(validation.body, validation.status);
+        reconfiguredConfig = validation.config;
+      }
+    } else if (body.config !== undefined) {
+      if (!hasProviderCredential(body.config)) return c.json({ error: "invalid providerCredentialId" }, 400);
       const credential = await loadOwnedActiveCredential(deps, auth.accountId, body.config.providerCredentialId);
       if (!credential) return c.json({ error: "invalid providerCredentialId" }, 400);
 
@@ -283,8 +390,8 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
     }
 
     const data: ActionReconfiguredData = {
-      addressFamilies: body.addressFamilies,
-      config: body.config as ActionConfig | undefined,
+      addressFamilies: owned.state.type === TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE ? undefined : body.addressFamilies,
+      config: reconfiguredConfig,
       reconfiguredAt: new Date().toISOString(),
     };
     const built = buildDomainEvent(deps.config, ACTION_AGGREGATE_TYPE, ActionEventName.Reconfigured, data);
@@ -301,6 +408,8 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, actionId);
+    // Both the previous and the new provider need a fresh snapshot when an action moves (US2-4).
+    await scheduleDelivery(deps, auth.accountId, owned.state, await currentState(deps, auth.accountId, actionId));
 
     // FR-017: a family dropped from an already-configured Firewall Rule Update Action gets its
     // previously-added entry removed, best-effort, using the PRE-reconfigure config/selector —
@@ -337,6 +446,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, actionId);
+    await scheduleDelivery(deps, auth.accountId, owned.state);
     return c.json({ actionId, status: "enabled" });
   });
 
@@ -364,6 +474,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, actionId);
+    await scheduleDelivery(deps, auth.accountId, owned.state);
     return c.json({ actionId, status: "disabled" });
   });
 
@@ -391,6 +502,7 @@ export function createActionsRoutes(deps: ActionsRouteDeps): Hono {
       data: built.data,
     });
     await refreshProjection(deps, auth.accountId, actionId);
+    await scheduleDelivery(deps, auth.accountId, owned.state);
 
     // FR-010/FR-011: best-effort, one-shot removal of everything this Action owns — never
     // blocks or reverts the detach itself, which has already been appended above.

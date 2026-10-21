@@ -3,7 +3,13 @@
     [
       "@semantic-release/commit-analyzer",
       {
-        "preset": "conventionalcommits"
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          {
+            "scope": "agent",
+            "release": false
+          }
+        ]
       }
     ]
   ]
