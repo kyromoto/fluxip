@@ -174,6 +174,8 @@ docker run -p 3000:3000 ghcr.io/<owner>/fluxip:<version> serve --single frontend
 
 A repo-root `docker-entrypoint.sh` runs before either start command and regenerates the frontend's runtime `config.js` from the `FRONTEND_*` env vars on every container start — see `specs/006-frontend-runtime-config/`.
 
+**Running version**: the release workflow passes the computed version into the image as `FLUXIP_VERSION`; the backend reports it at `GET /api/version` and the GUI shows it under the logo (`dev` outside a release build, e.g. local development).
+
 **Where to find things**: published image tags and `:latest` are under `ghcr.io/<owner>/fluxip` (GitHub Container Registry, repository Packages tab); each release also gets a matching Git tag (`vX.Y.Z`) and GitHub Release. A version's Git tag is only ever created after that version's image has already published successfully — never before, never independently.
 
 **Safety**: a push that fails the build, the tests, the Docker build, or either role's smoke test never publishes anything — the job simply fails at that step. A push with no qualifying commit still runs the full build/test/smoke-test pipeline (so regressions are still caught) but publishes nothing.

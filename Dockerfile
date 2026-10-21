@@ -43,5 +43,8 @@ COPY --from=build /app/frontend/dist ./frontend/dist
 COPY --from=build /app/frontend/scripts ./frontend/scripts
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+# Shown in the GUI header (GET /api/version). Declared this late so a new version only invalidates the last layers.
+ARG FLUXIP_VERSION=dev
+ENV FLUXIP_VERSION=$FLUXIP_VERSION
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 EXPOSE 8080 3000

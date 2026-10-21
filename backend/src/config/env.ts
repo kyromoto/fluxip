@@ -38,6 +38,8 @@ export interface Config {
   agentResyncMs: number;
   /** Heartbeat interval proposed to agents. */
   agentHeartbeatSeconds: number;
+  /** The running release, baked into the image as FLUXIP_VERSION; "dev" outside a release build. */
+  version: string;
 }
 
 const REQUIRED_STRING_VARS = [
@@ -115,5 +117,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     agentSnapshotCoalesceMs: optionalInt(env, "BACKEND_AGENT_SNAPSHOT_COALESCE_MS", 1000),
     agentResyncMs: optionalInt(env, "BACKEND_AGENT_RESYNC_MS", 900_000),
     agentHeartbeatSeconds: optionalInt(env, "BACKEND_AGENT_HEARTBEAT_SECONDS", 30),
+    version: optionalString(env, "FLUXIP_VERSION", "dev").trim() || "dev",
   };
 }

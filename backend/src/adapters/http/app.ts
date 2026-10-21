@@ -23,6 +23,7 @@ import { createIpClientsRoutes } from "./routes/ip-clients.js";
 import { createNotificationChannelRoutes } from "./routes/notification-channel.js";
 import { createProviderCredentialsRoutes } from "./routes/provider-credentials.js";
 import { createDeliveryStatusRoutes } from "./routes/delivery-status.js";
+import { createVersionRoutes } from "./routes/version.js";
 import { createTraefikProvidersRoutes } from "./routes/traefik-providers.js";
 import { createTriggerRoutes } from "./routes/trigger.js";
 import { metricsRoute } from "./metrics-route.js";
@@ -70,6 +71,7 @@ export function createApp(deps: AppDependencies): CreatedApp {
     await next();
   });
 
+  api.route("/version", createVersionRoutes({ config: deps.config }));
   api.route(
     "/ip-clients",
     createIpClientsRoutes({
