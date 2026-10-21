@@ -1,5 +1,6 @@
 import { useParams } from "@solidjs/router";
-import { createResource, For, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { api } from "~/services/api";
 
@@ -69,6 +70,9 @@ function addressChange(previous: string | undefined, next: string | undefined): 
   return previous ? `${previous} → ${next}` : next;
 }
 
+const PAGE_SIZES = [10, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
+
 export default function DeviceHistory() {
   const params = useParams<{ ipClientId: string }>();
 
@@ -85,6 +89,17 @@ export default function DeviceHistory() {
       return [...res.items].reverse();
     },
   );
+
+  // Newest first, so page 1 always shows the latest changes.
+  const [pageSize, setPageSize] = createSignal<number>(DEFAULT_PAGE_SIZE);
+  const [requestedPage, setRequestedPage] = createSignal(1);
+  const totalPages = createMemo(() => Math.max(1, Math.ceil((changes()?.length ?? 0) / pageSize())));
+  // Clamped, so a shrinking list or a bigger page size never leaves the user on a page that no longer exists.
+  const page = createMemo(() => Math.min(requestedPage(), totalPages()));
+  const visible = createMemo(() => {
+    const start = (page() - 1) * pageSize();
+    return (changes() ?? []).slice(start, start + pageSize());
+  });
 
   return (
     <div class="space-y-6">
@@ -108,7 +123,7 @@ export default function DeviceHistory() {
             }
           >
             <div class="space-y-4">
-              <For each={items()}>
+              <For each={visible()}>
                 {(change) => (
                   <Card>
                     <CardHeader class="space-y-1">
@@ -164,6 +179,39 @@ export default function DeviceHistory() {
                 )}
               </For>
             </div>
+            <Show when={items().length > PAGE_SIZES[0]}>
+              <nav class="flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Pagination">
+                <label class="flex items-center gap-2 text-muted-foreground">
+                  Per page
+                  <select
+                    class="h-9 rounded-md border border-input bg-background px-2 text-foreground"
+                    value={pageSize()}
+                    onChange={(e) => {
+                      setPageSize(Number(e.currentTarget.value));
+                      setRequestedPage(1);
+                    }}
+                  >
+                    <For each={PAGE_SIZES}>{(size) => <option value={size}>{size}</option>}</For>
+                  </select>
+                </label>
+                <div class="flex items-center gap-3">
+                  <span class="text-muted-foreground">
+                    Page {page()} of {totalPages()}
+                  </span>
+                  <Button size="sm" variant="outline" disabled={page() <= 1} onClick={() => setRequestedPage(page() - 1)}>
+                    Newer
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={page() >= totalPages()}
+                    onClick={() => setRequestedPage(page() + 1)}
+                  >
+                    Older
+                  </Button>
+                </div>
+              </nav>
+            </Show>
           </Show>
         )}
       </Show>
