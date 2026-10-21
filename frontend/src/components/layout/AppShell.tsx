@@ -20,11 +20,13 @@ const NAV_LINKS = [
  * user is already known to be authenticated, so there's no sign-in/loading
  * branching here. Dark/light appearance comes from app.css's
  * `prefers-color-scheme` variables alone — no theme logic here.
+ *
+ * The frame fills the viewport and only <main> scrolls, so header and breadcrumbs stay visible on long pages.
  */
 export function AppShell(props: { children?: JSX.Element }) {
   return (
-    <div class="min-h-screen bg-background text-foreground">
-      <header class="border-b">
+    <div class="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+      <header class="shrink-0 border-b">
         <div class="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div class="flex flex-col items-center gap-1">
             <A href="/" class="flex items-center gap-2" aria-label="FluxIP home">
@@ -47,8 +49,13 @@ export function AppShell(props: { children?: JSX.Element }) {
           </Button>
         </div>
       </header>
-      <Breadcrumbs />
-      <main class="mx-auto max-w-4xl px-4 py-6">{props.children}</main>
+      <div class="shrink-0">
+        <Breadcrumbs />
+      </div>
+      {/* Only the content scrolls; header and breadcrumbs stay put. */}
+      <main class="min-h-0 flex-1 overflow-y-auto">
+        <div class="mx-auto max-w-4xl px-4 py-6">{props.children}</div>
+      </main>
     </div>
   );
 }
