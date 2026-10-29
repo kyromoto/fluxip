@@ -17,9 +17,13 @@ Every push to `main` runs [`.github/workflows/release.yml`](../.github/workflows
 **One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.yml`'s `app` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "--single", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
 
 ```bash
+# once per version, before the backend starts (the backend no longer migrates on startup)
+docker run --rm --env-file .env ghcr.io/<owner>/fluxip:<version> node backend/dist/cli.js migrate
 docker run --env-file .env -p 8080:8080 ghcr.io/<owner>/fluxip:<version> node backend/dist/main.js
 docker run -p 3000:3000 ghcr.io/<owner>/fluxip:<version> serve --single frontend/dist -l 3000
 ```
+
+Without the `migrate` step the backend stops on start with a message naming it. In Docker Compose, the `migrate` service does it before `app` starts.
 
 A repo-root `docker-entrypoint.sh` runs before either start command and regenerates the frontend's runtime `config.js` from the `FRONTEND_*` env vars on every container start — see `specs/006-frontend-runtime-config/`.
 

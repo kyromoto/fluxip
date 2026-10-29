@@ -8,7 +8,7 @@ cp .env.example .env
 
 ## Backend
 
-Read by `backend/src/config/env.ts` (`loadConfig()`) — a missing "Yes" var throws at startup, before the port ever opens.
+Read by `backend/src/config/env.ts` (`loadConfig()`) — a missing "Yes" var throws at startup, before the port ever opens. Run `node backend/dist/cli.js validate-config` (add `--online` to also check Postgres, Redis and Logto) to find every problem before a deploy; see [development.md](development.md#admin-cli).
 
 | Name | Required | Default | Description |
 |---|---|---|---|
@@ -22,8 +22,8 @@ Read by `backend/src/config/env.ts` (`loadConfig()`) — a missing "Yes" var thr
 | `BACKEND_ACTION_RETRY_ATTEMPTS` | | `5` | BullMQ retry attempts for a failed Action execution. |
 | `BACKEND_ACTION_RETRY_BASE_DELAY_MS` | | `30000` | Base delay (ms) for exponential retry backoff. |
 | `BACKEND_IP_CLIENT_DEBOUNCE_MS` | | `30000` | Debounce window (ms) absorbing IP-flapping before an Action fires. |
-| `BACKEND_LOGTO_APP_ID` | | | Logto application ID for the backend's own (optional) Logto app — distinct from the frontend's `FRONTEND_LOGTO_APP_ID`. |
-| `BACKEND_LOGTO_APP_SECRET` | | | Logto application secret matching `BACKEND_LOGTO_APP_ID`. |
+| `BACKEND_LOGTO_APP_ID` | | | **Not used by the backend at the moment** (token verification only needs `BACKEND_LOGTO_ENDPOINT`). Logto application ID for a backend app — distinct from the frontend's `FRONTEND_LOGTO_APP_ID`. |
+| `BACKEND_LOGTO_APP_SECRET` | | | **Not used by the backend at the moment.** Logto application secret matching `BACKEND_LOGTO_APP_ID`. |
 | `BACKEND_LOGTO_MANAGEMENT_CLIENT_ID` | | | Client ID of the machine-to-machine Logto app used to proxy in-app password changes via the Management API. |
 | `BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET` | | | Client secret matching `BACKEND_LOGTO_MANAGEMENT_CLIENT_ID`. |
 | `BACKEND_LOGTO_MANAGEMENT_API_BASE_URL` | | | Base URL of Logto's Management API. |

@@ -19,6 +19,8 @@ pnpm install
 pnpm run dev:backend              # :8080
 pnpm run dev:frontend             # :5173
 pnpm run lint
+pnpm --filter fluxip-backend cli migrate          # Migrationen anwenden (die App migriert beim Start nicht mehr)
+pnpm --filter fluxip-backend cli validate-config  # Konfiguration prüfen, --online prüft Postgres, Redis, Logto
 pnpm --filter fluxip-backend test
 (cd agent && go test ./...)
 ```

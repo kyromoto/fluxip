@@ -5,9 +5,25 @@
 ```bash
 pnpm install
 docker compose up -d postgres redis logto   # infra only
+pnpm --filter fluxip-backend cli migrate     # once, and after every pull that adds a migration
 pnpm run dev:backend                         # backend on :8080 (tsx watch)
 pnpm run dev:frontend                        # frontend on :5173 (Vite dev server)
 ```
+
+## Admin CLI
+
+The backend ships a small CLI for one-off admin tasks (`backend/src/cli.ts`). In the image it is `node backend/dist/cli.js <command>`, in the workspace `pnpm --filter fluxip-backend cli <command>`.
+
+| Command | Purpose |
+|---|---|
+| `migrate` | Applies pending database migrations without starting the app. Needs only `BACKEND_DATABASE_URL`. Safe to run from several processes at once (Postgres advisory lock): the others wait and find nothing left to do. |
+| `validate-config [--online]` | Checks the environment before a deploy and lists every problem at once, never printing a value. `--online` also checks that Postgres, Redis and Logto answer (5 s limit each). Warnings (development defaults for email, missing management credentials, no public agent URL) do not change the exit code. |
+
+Exit codes: `0` ok, `1` the check or migration failed, `2` usage error. `help` lists the commands and needs no configuration.
+
+The web process does not migrate any more. It checks the schema on start and stops with `Database schema is outdated … Run: node backend/dist/cli.js migrate` if migrations are pending. In Docker Compose the one-off `migrate` service runs first; elsewhere (an orchestrator, `docker run`) make `migrate` a release step before the new version starts. A `migrate` run that waits on the lock behind a crashed process stays blocked until Postgres drops that connection (TCP timeout).
+
+`app` and `frontend` have Compose healthchecks (`/readyz`, `/`). `/readyz` answers 503 while Postgres or Redis is unreachable, so `app` turns unhealthy and recovers on its own. The check calls `127.0.0.1`; if you set `BACKEND_BIND_ADDRESS` to a specific address, adjust the check in `docker-compose.yml`.
 
 ## Testing
 

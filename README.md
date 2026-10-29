@@ -23,7 +23,7 @@ cp .env.example .env     # fill in the required values, see docs/configuration.m
 docker compose up -d     # Postgres, Redis, Logto, backend (:8080), frontend (:3000)
 ```
 
-The backend applies its Postgres migrations on startup. For local development without Docker for the app itself, see [docs/development.md](docs/development.md).
+The `migrate` service of the Compose file applies the database migrations once and exits before the backend starts; `app` and `frontend` report their health (`docker compose ps`). The backend no longer migrates on startup: against an outdated schema it stops with a message naming the migration command. Outside Compose, run `node backend/dist/cli.js migrate` before starting a new version, and check a configuration before deploying it with `node backend/dist/cli.js validate-config [--online]` (see [docs/development.md](docs/development.md#admin-cli)). For local development without Docker for the app itself, see [docs/development.md](docs/development.md).
 
 ## Documentation
 
