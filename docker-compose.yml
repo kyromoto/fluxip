@@ -81,8 +81,12 @@ services:
     # FRONTEND_LOGTO_ENDPOINT/_APP_ID/_API_RESOURCE/_BACKEND_URL (see
     # .env.example) are read by the entrypoint at container start to
     # generate frontend/dist/config.js (specs/006-frontend-runtime-config).
-    env_file:
-      - .env
+    # Only the FRONTEND_* values are passed on, never the backend's secrets.
+    environment:
+      FRONTEND_LOGTO_ENDPOINT: ${FRONTEND_LOGTO_ENDPOINT:-}
+      FRONTEND_LOGTO_APP_ID: ${FRONTEND_LOGTO_APP_ID:-}
+      FRONTEND_LOGTO_API_RESOURCE: ${FRONTEND_LOGTO_API_RESOURCE:-}
+      FRONTEND_BACKEND_URL: ${FRONTEND_BACKEND_URL:-}
     depends_on:
       - app
     ports:
