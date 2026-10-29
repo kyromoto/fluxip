@@ -1,4 +1,4 @@
-FROM node:22.23.4-slim AS base
+FROM node:24.22.2-alpine3.24 AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
 RUN pnpm install --prod --frozen-lockfile
 
-FROM node:22.23.4-slim AS runtime
+FROM node:24.22.2-alpine3.24 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 # frontend/node_modules/.bin so the frontend role's `serve` start command
