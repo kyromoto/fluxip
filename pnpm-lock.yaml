@@ -11,6 +11,9 @@ importers:
       '@semantic-release/commit-analyzer':
         specifier: ^13.0.1
         version: 13.0.1(semantic-release@25.0.8(typescript@5.9.3))
+      '@semantic-release/release-notes-generator':
+        specifier: ^14.1.1
+        version: 14.1.1(semantic-release@25.0.8(typescript@5.9.3))
       conventional-changelog-conventionalcommits:
         specifier: ^10.2.1
         version: 10.2.1
