@@ -132,7 +132,7 @@ export default function DeviceHistory() {
   return (
     <div class="space-y-6">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">{device()?.label ?? "Device"} — reported IP updates</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">{device()?.label ?? "Device"} — History</h1>
         <p class="text-sm text-muted-foreground">
           Every confirmed address change this device reported, and what happened as a result. Most recent first.
         </p>

@@ -48,7 +48,7 @@ const ROUTES: RouteMeta[] = [
       return [
         { label: "Devices", href: "/ip-clients" },
         { label, href: `/ip-clients/${ipClientId}/actions` },
-        { label: "Reported updates" },
+        { label: "History" },
       ];
     },
   },
