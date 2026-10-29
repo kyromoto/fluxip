@@ -9,7 +9,10 @@ Every push to `main` runs [`.github/workflows/release.yml`](../.github/workflows
 | `fix:` | patch (`0.1.0` → `0.1.1`) |
 | `feat:` | minor (`0.1.0` → `0.2.0`) |
 | `feat!:` / `fix!:` / a `BREAKING CHANGE:` footer | major (`0.1.0` → `1.0.0`) |
-| anything else (`chore:`, `docs:`, no prefix, ...) | no release |
+| `perf:` / `revert:` | patch |
+| anything else (`chore:`, `docs:`, `refactor:`, `test:`, `build:`, `ci:`, no prefix, ...) | no release |
+
+**Multiple commits per push**: a push produces at most **one** release. All commits since the last release tag are analysed together and the highest bump wins (e.g. three `fix:` and one `feat:` → one minor bump, not four bumps). Commits with the scope `agent` (e.g. `fix(agent): ...`) never trigger a release on their own; the agent is released separately via [`agent-release.yml`](../.github/workflows/agent-release.yml).
 
 **One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.yml`'s `app` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "--single", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
 
@@ -25,11 +28,3 @@ A repo-root `docker-entrypoint.sh` runs before either start command and regenera
 **Where to find things**: published image tags and `:latest` are under `ghcr.io/<owner>/fluxip` (GitHub Container Registry, repository Packages tab); each release also gets a matching Git tag (`vX.Y.Z`) and GitHub Release. A version's Git tag is only ever created after that version's image has already published successfully — never before, never independently.
 
 **Safety**: a push that fails the build, the tests, the Docker build, or either role's smoke test never publishes anything — the job simply fails at that step. A push with no qualifying commit still runs the full build/test/smoke-test pipeline (so regressions are still caught) but publishes nothing.
-
-**One-time setup**: before the pipeline's first real run, seed a baseline tag so version computation has something to bump from (`semantic-release` otherwise starts from `1.0.0`, not this project's `0.1.0` baseline):
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
