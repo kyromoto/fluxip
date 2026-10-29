@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
-import { Pool } from "pg";
-import { runMigrations } from "./adapters/event-store-postgres/migrate.js";
+import { assertSchemaCurrent } from "./adapters/event-store-postgres/migrate.js";
+import { createPool } from "./adapters/event-store-postgres/pool.js";
 import { PostgresEventStore } from "./adapters/event-store-postgres/postgres-event-store.js";
 import { createApp } from "./adapters/http/app.js";
 import {
@@ -31,8 +31,9 @@ async function main(): Promise<void> {
   const config = loadConfig();
   await configureLogging(config);
 
-  const pool = new Pool({ connectionString: config.databaseUrl });
-  await runMigrations(pool);
+  const pool = createPool(config.databaseUrl);
+  // Migrations are a one-off admin step (`node backend/dist/cli.js migrate`), not part of the web process start.
+  await assertSchemaCurrent(pool);
 
   const eventStore = new PostgresEventStore(pool);
   const redis = getRedisConnection(config);

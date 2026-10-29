@@ -43,7 +43,7 @@ export interface Config {
   version: string;
 }
 
-const REQUIRED_STRING_VARS = [
+export const REQUIRED_STRING_VARS = [
   "BACKEND_CLOUDEVENTS_SOURCE",
   "BACKEND_CLOUDEVENTS_TYPE_PREFIX",
   "BACKEND_DATABASE_URL",
@@ -52,73 +52,111 @@ const REQUIRED_STRING_VARS = [
   "BACKEND_CREDENTIAL_ENCRYPTION_KEY",
 ] as const;
 
-function requireString(env: NodeJS.ProcessEnv, key: string): string {
-  const value = env[key];
-  if (!value || value.trim() === "") {
-    throw new Error(`Missing required environment variable: ${key}`);
+/** A problem with one environment variable. Never carries the variable's value. */
+export interface ConfigProblem {
+  name: string;
+  kind: "missing" | "not_integer";
+}
+
+function describeProblem(problem: ConfigProblem): string {
+  return problem.kind === "missing"
+    ? `Missing required environment variable: ${problem.name}`
+    : `Environment variable ${problem.name} must be an integer`;
+}
+
+/** All problems found while reading the configuration, so one run reports everything that is wrong. */
+export class ConfigError extends Error {
+  constructor(readonly problems: ConfigProblem[]) {
+    super(problems.map(describeProblem).join("\n"));
+    this.name = "ConfigError";
   }
-  return value;
 }
 
-function optionalString(env: NodeJS.ProcessEnv, key: string, fallback = ""): string {
-  return env[key] ?? fallback;
-}
+/** Reads variables and records problems instead of throwing at the first one. */
+class EnvReader {
+  readonly problems: ConfigProblem[] = [];
 
-function optionalInt(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
-  const raw = env[key];
-  if (raw === undefined || raw === "") return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`Environment variable ${key} must be an integer, got: ${raw}`);
+  constructor(private readonly env: NodeJS.ProcessEnv) {}
+
+  requireString(key: string): string {
+    const value = this.env[key];
+    if (!value || value.trim() === "") {
+      this.problems.push({ name: key, kind: "missing" });
+      return "";
+    }
+    return value;
   }
-  return parsed;
+
+  optionalString(key: string, fallback = ""): string {
+    return this.env[key] ?? fallback;
+  }
+
+  optionalInt(key: string, fallback: number): number {
+    const raw = this.env[key];
+    if (raw === undefined || raw === "") return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isNaN(parsed)) {
+      this.problems.push({ name: key, kind: "not_integer" });
+      return fallback;
+    }
+    return parsed;
+  }
+
+  optionalBool(key: string, fallback: boolean): boolean {
+    const raw = this.env[key];
+    if (raw === undefined || raw === "") return fallback;
+    return raw === "true";
+  }
 }
 
-function optionalBool(env: NodeJS.ProcessEnv, key: string, fallback: boolean): boolean {
-  const raw = env[key];
-  if (raw === undefined || raw === "") return fallback;
-  return raw === "true";
+function readConfig(env: NodeJS.ProcessEnv): { config: Config; problems: ConfigProblem[] } {
+  const r = new EnvReader(env);
+  const config: Config = {
+    cloudEventsSource: r.requireString("BACKEND_CLOUDEVENTS_SOURCE"),
+    cloudEventsTypePrefix: r.requireString("BACKEND_CLOUDEVENTS_TYPE_PREFIX"),
+    defaultIpClientLimit: r.optionalInt("BACKEND_DEFAULT_IP_CLIENT_LIMIT", 5),
+    actionRetryAttempts: r.optionalInt("BACKEND_ACTION_RETRY_ATTEMPTS", 5),
+    actionRetryBaseDelayMs: r.optionalInt("BACKEND_ACTION_RETRY_BASE_DELAY_MS", 30_000),
+    ipClientDebounceMs: r.optionalInt("BACKEND_IP_CLIENT_DEBOUNCE_MS", 30_000),
+    databaseUrl: r.requireString("BACKEND_DATABASE_URL"),
+    redisUrl: r.requireString("BACKEND_REDIS_URL"),
+    logtoEndpoint: r.requireString("BACKEND_LOGTO_ENDPOINT"),
+    logtoAppId: r.optionalString("BACKEND_LOGTO_APP_ID"),
+    logtoAppSecret: r.optionalString("BACKEND_LOGTO_APP_SECRET"),
+    logtoManagementClientId: r.optionalString("BACKEND_LOGTO_MANAGEMENT_CLIENT_ID"),
+    logtoManagementClientSecret: r.optionalString("BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET"),
+    logtoManagementApiBaseUrl: r.optionalString("BACKEND_LOGTO_MANAGEMENT_API_BASE_URL"),
+    port: r.optionalInt("BACKEND_PORT", 8080),
+    bindAddress: r.optionalString("BACKEND_BIND_ADDRESS", "0.0.0.0").trim() || "0.0.0.0",
+    credentialEncryptionKey: r.requireString("BACKEND_CREDENTIAL_ENCRYPTION_KEY"),
+    smtpHost: r.optionalString("BACKEND_SMTP_HOST", "localhost"),
+    smtpPort: r.optionalInt("BACKEND_SMTP_PORT", 1025),
+    smtpUser: r.optionalString("BACKEND_SMTP_USER"),
+    smtpPassword: r.optionalString("BACKEND_SMTP_PASSWORD"),
+    smtpSecure: r.optionalBool("BACKEND_SMTP_SECURE", false),
+    notificationFromAddress: r.optionalString("BACKEND_NOTIFICATION_FROM_ADDRESS", "fluxip@localhost"),
+    appLogLevel: r.optionalString("BACKEND_APP_LOG_LEVEL", "info"),
+    accessLogFilePath: r.optionalString("BACKEND_ACCESS_LOG_FILE_PATH", "logs/access.log"),
+    accessLogMaxSizeBytes: r.optionalInt("BACKEND_ACCESS_LOG_MAX_SIZE_BYTES", 10_485_760),
+    accessLogMaxFiles: r.optionalInt("BACKEND_ACCESS_LOG_MAX_FILES", 5),
+    agentPort: r.optionalInt("BACKEND_AGENT_PORT", 8081),
+    agentPublicUrl: r.optionalString("BACKEND_AGENT_PUBLIC_URL").replace(/\/+$/, ""),
+    agentSnapshotMaxBytes: r.optionalInt("BACKEND_AGENT_SNAPSHOT_MAX_BYTES", 1_048_576),
+    agentSnapshotCoalesceMs: r.optionalInt("BACKEND_AGENT_SNAPSHOT_COALESCE_MS", 1000),
+    agentResyncMs: r.optionalInt("BACKEND_AGENT_RESYNC_MS", 900_000),
+    agentHeartbeatSeconds: r.optionalInt("BACKEND_AGENT_HEARTBEAT_SECONDS", 30),
+    version: r.optionalString("FLUXIP_VERSION", "dev").trim() || "dev",
+  };
+  return { config, problems: r.problems };
+}
+
+/** Every problem `loadConfig` would stop at, without throwing. Shared with `validate-config`. */
+export function collectConfigProblems(env: NodeJS.ProcessEnv = process.env): ConfigProblem[] {
+  return readConfig(env).problems;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  for (const key of REQUIRED_STRING_VARS) {
-    requireString(env, key);
-  }
-
-  return {
-    cloudEventsSource: requireString(env, "BACKEND_CLOUDEVENTS_SOURCE"),
-    cloudEventsTypePrefix: requireString(env, "BACKEND_CLOUDEVENTS_TYPE_PREFIX"),
-    defaultIpClientLimit: optionalInt(env, "BACKEND_DEFAULT_IP_CLIENT_LIMIT", 5),
-    actionRetryAttempts: optionalInt(env, "BACKEND_ACTION_RETRY_ATTEMPTS", 5),
-    actionRetryBaseDelayMs: optionalInt(env, "BACKEND_ACTION_RETRY_BASE_DELAY_MS", 30_000),
-    ipClientDebounceMs: optionalInt(env, "BACKEND_IP_CLIENT_DEBOUNCE_MS", 30_000),
-    databaseUrl: requireString(env, "BACKEND_DATABASE_URL"),
-    redisUrl: requireString(env, "BACKEND_REDIS_URL"),
-    logtoEndpoint: requireString(env, "BACKEND_LOGTO_ENDPOINT"),
-    logtoAppId: optionalString(env, "BACKEND_LOGTO_APP_ID"),
-    logtoAppSecret: optionalString(env, "BACKEND_LOGTO_APP_SECRET"),
-    logtoManagementClientId: optionalString(env, "BACKEND_LOGTO_MANAGEMENT_CLIENT_ID"),
-    logtoManagementClientSecret: optionalString(env, "BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET"),
-    logtoManagementApiBaseUrl: optionalString(env, "BACKEND_LOGTO_MANAGEMENT_API_BASE_URL"),
-    port: optionalInt(env, "BACKEND_PORT", 8080),
-    bindAddress: optionalString(env, "BACKEND_BIND_ADDRESS", "0.0.0.0").trim() || "0.0.0.0",
-    credentialEncryptionKey: requireString(env, "BACKEND_CREDENTIAL_ENCRYPTION_KEY"),
-    smtpHost: optionalString(env, "BACKEND_SMTP_HOST", "localhost"),
-    smtpPort: optionalInt(env, "BACKEND_SMTP_PORT", 1025),
-    smtpUser: optionalString(env, "BACKEND_SMTP_USER"),
-    smtpPassword: optionalString(env, "BACKEND_SMTP_PASSWORD"),
-    smtpSecure: optionalBool(env, "BACKEND_SMTP_SECURE", false),
-    notificationFromAddress: optionalString(env, "BACKEND_NOTIFICATION_FROM_ADDRESS", "fluxip@localhost"),
-    appLogLevel: optionalString(env, "BACKEND_APP_LOG_LEVEL", "info"),
-    accessLogFilePath: optionalString(env, "BACKEND_ACCESS_LOG_FILE_PATH", "logs/access.log"),
-    accessLogMaxSizeBytes: optionalInt(env, "BACKEND_ACCESS_LOG_MAX_SIZE_BYTES", 10_485_760),
-    accessLogMaxFiles: optionalInt(env, "BACKEND_ACCESS_LOG_MAX_FILES", 5),
-    agentPort: optionalInt(env, "BACKEND_AGENT_PORT", 8081),
-    agentPublicUrl: optionalString(env, "BACKEND_AGENT_PUBLIC_URL").replace(/\/+$/, ""),
-    agentSnapshotMaxBytes: optionalInt(env, "BACKEND_AGENT_SNAPSHOT_MAX_BYTES", 1_048_576),
-    agentSnapshotCoalesceMs: optionalInt(env, "BACKEND_AGENT_SNAPSHOT_COALESCE_MS", 1000),
-    agentResyncMs: optionalInt(env, "BACKEND_AGENT_RESYNC_MS", 900_000),
-    agentHeartbeatSeconds: optionalInt(env, "BACKEND_AGENT_HEARTBEAT_SECONDS", 30),
-    version: optionalString(env, "FLUXIP_VERSION", "dev").trim() || "dev",
-  };
+  const { config, problems } = readConfig(env);
+  if (problems.length > 0) throw new ConfigError(problems);
+  return config;
 }

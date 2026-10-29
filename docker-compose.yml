@@ -53,6 +53,20 @@ services:
     ports:
       - "3010:3000"
 
+  # One-off admin step: brings the database to the current schema, then exits. The app does not migrate on
+  # start any more and refuses to run against an outdated schema (specs/010-admin-cli-healthchecks).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "backend/dist/cli.js", "migrate"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+
   app:
     build:
       context: .
@@ -65,8 +79,19 @@ services:
         condition: service_healthy
       logto:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - .env
+    # Ready (not just alive): /readyz answers 503 while Postgres or Redis is unreachable. The test lives here
+    # and not in the Dockerfile because one image serves both the backend and the frontend role. If
+    # BACKEND_BIND_ADDRESS is set to a specific address, use that address instead of 127.0.0.1.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${BACKEND_PORT:-8080}/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
     ports:
       - "8080:8080"
       - "8081:8081"
@@ -88,7 +113,14 @@ services:
       FRONTEND_LOGTO_API_RESOURCE: ${FRONTEND_LOGTO_API_RESOURCE:-}
       FRONTEND_BACKEND_URL: ${FRONTEND_BACKEND_URL:-}
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
     ports:
       - "5173:3000"
 
