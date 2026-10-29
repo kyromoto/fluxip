@@ -83,6 +83,7 @@ async function main(): Promise<void> {
     config,
     eventStore,
     redis,
+    pool,
     accountService,
     accountClosureService,
     debounceQueue,

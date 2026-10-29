@@ -1,5 +1,6 @@
 import type { Queue } from "bullmq";
 import { Hono } from "hono";
+import type { Pool } from "pg";
 import type { Redis } from "ioredis";
 import { AccountClosureService } from "../../domain/account/account-closure-service.js";
 import { AccountService } from "../../domain/account/account-service.js";
@@ -23,6 +24,7 @@ import { createIpClientsRoutes } from "./routes/ip-clients.js";
 import { createNotificationChannelRoutes } from "./routes/notification-channel.js";
 import { createProviderCredentialsRoutes } from "./routes/provider-credentials.js";
 import { createDeliveryStatusRoutes } from "./routes/delivery-status.js";
+import { createHealthRoutes } from "./routes/health.js";
 import { createVersionRoutes } from "./routes/version.js";
 import { createTraefikProvidersRoutes } from "./routes/traefik-providers.js";
 import { createTriggerRoutes } from "./routes/trigger.js";
@@ -32,6 +34,7 @@ export interface AppDependencies {
   config: Config;
   eventStore: EventStore;
   redis: Redis;
+  pool: Pool;
   accountService: AccountService;
   accountClosureService: AccountClosureService;
   debounceQueue: Queue<DebounceJobData>;
@@ -58,6 +61,12 @@ export function createApp(deps: AppDependencies): CreatedApp {
   // an Access Log entry (FR-007), independent of whether anything below logs.
   app.use("*", createAccessLogMiddleware());
   app.route("/", metricsRoute);
+  app.route(
+    "/",
+    createHealthRoutes({
+      checks: { postgres: () => deps.pool.query("SELECT 1"), redis: () => deps.redis.ping() },
+    }),
+  );
   app.route(
     "/",
     createTriggerRoutes({ config: deps.config, eventStore: deps.eventStore, debounceQueue: deps.debounceQueue }),
