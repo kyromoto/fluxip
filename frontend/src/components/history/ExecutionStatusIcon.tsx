@@ -15,8 +15,8 @@ const BASE = "h-4 w-4 shrink-0";
  * clock = still running. The wording is available on hover (title) and to screen readers (aria-label),
  * so nothing is lost by dropping the visible text.
  */
-export const ExecutionStatusIcon: Component<{ status: ExecutionStatus }> = (props) => {
-  const label = () => EXECUTION_STATUS_LABEL[props.status];
+export const ExecutionStatusIcon: Component<{ status: ExecutionStatus; label?: string }> = (props) => {
+  const label = () => props.label ?? EXECUTION_STATUS_LABEL[props.status];
   return (
     <span class="inline-flex" role="img" aria-label={label()} title={label()} data-status={props.status}>
       <Switch>

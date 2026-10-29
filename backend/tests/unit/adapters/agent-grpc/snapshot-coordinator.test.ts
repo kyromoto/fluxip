@@ -16,14 +16,14 @@ const snapshot = (version: number, correlationId = `c${version}`) => ({
 describe("SnapshotCoordinator", () => {
   let registry: SessionRegistry;
   let sent: AgentMessage[];
-  let calls: { providerId: string; causationId?: string }[];
+  let calls: { providerId: string; causationId?: string; absorbed?: string[] }[];
   let results: (PublishResult | null)[];
   let coordinator: SnapshotCoordinator;
   let gate: Promise<void> | null;
 
   const publisher: SnapshotPublishing = {
-    async publish(_account, providerId, causationId) {
-      calls.push({ providerId, causationId });
+    async publish(_account, providerId, causationId, absorbedCausationIds) {
+      calls.push(absorbedCausationIds?.length ? { providerId, causationId, absorbed: absorbedCausationIds } : { providerId, causationId });
       if (gate) await gate;
       return results.shift() ?? { changed: false, snapshot: snapshot(1) };
     },
@@ -53,8 +53,30 @@ describe("SnapshotCoordinator", () => {
     await coordinator.schedule("a1", ["p1"], "cause-3");
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(calls).toEqual([{ providerId: "p1", causationId: "cause-3" }]);
+    expect(calls).toEqual([{ providerId: "p1", causationId: "cause-3", absorbed: ["cause-1", "cause-2"] }]);
     expect(sent).toEqual([expect.objectContaining({ type: "snapshot", version: 5, correlationId: "cause-3" })]);
+  });
+
+  it("ignores triggers without a cause when collecting absorbed causes (specs/009)", async () => {
+    results.push({ changed: true, snapshot: snapshot(5, "cause-2") });
+    await coordinator.schedule("a1", ["p1"], "cause-1");
+    await coordinator.schedule("a1", ["p1"]);
+    await coordinator.schedule("a1", ["p1"], "cause-2");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls).toEqual([{ providerId: "p1", causationId: "cause-2", absorbed: ["cause-1"] }]);
+  });
+
+  it("hands each run only the causes collected since the previous one (specs/009)", async () => {
+    results.push({ changed: true, snapshot: snapshot(2) }, { changed: true, snapshot: snapshot(3) });
+    await coordinator.schedule("a1", ["p1"], "a");
+    await coordinator.schedule("a1", ["p1"], "b");
+    await vi.advanceTimersByTimeAsync(1000);
+    await coordinator.schedule("a1", ["p1"], "c");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls).toEqual([
+      { providerId: "p1", causationId: "b", absorbed: ["a"] },
+      { providerId: "p1", causationId: "c" },
+    ]);
   });
 
   it("sends nothing when the recomputed content did not change (US3-3)", async () => {

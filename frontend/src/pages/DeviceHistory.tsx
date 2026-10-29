@@ -1,7 +1,7 @@
 import { useParams } from "@solidjs/router";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
-import { ExecutionStatusIcon } from "~/components/history/ExecutionStatusIcon";
+import { ExecutionStatusIcon, type ExecutionStatus } from "~/components/history/ExecutionStatusIcon";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { api } from "~/services/api";
 
@@ -28,6 +28,16 @@ interface ExecutionEntry {
   failedAt: string | null;
 }
 
+interface TraefikDelivery {
+  actionId: string;
+  providerName: string | null;
+  group: string;
+  kind: "delivered" | "combined";
+  stage: "published" | "applied" | "failed" | null;
+  at: string | null;
+  error: string | null;
+}
+
 interface IpChangeEntry {
   ipChangedEventId: string;
   time: string;
@@ -38,7 +48,15 @@ interface IpChangeEntry {
     newIPv6?: string;
   };
   executions: ExecutionEntry[];
+  /** Traefik deliveries never run as executions, so they come separately. Absent on older backends. */
+  deliveries?: TraefikDelivery[];
 }
+
+const DELIVERY_STAGE: Record<NonNullable<TraefikDelivery["stage"]>, { label: string; status: ExecutionStatus }> = {
+  published: { label: "Published, awaiting agent", status: "running" },
+  applied: { label: "Applied", status: "succeeded" },
+  failed: { label: "Failed", status: "failed" },
+};
 
 const ACTION_TYPE_LABEL: Record<string, string> = {
   hetzner_cloud_dns_update: "Hetzner Cloud DNS Update",
@@ -95,6 +113,33 @@ function AddressChange(props: { family: "IPv4" | "IPv6"; change: { previous?: st
         <span class="min-w-0 truncate">{props.change.next}</span>
       </span>
     </div>
+  );
+}
+
+/** One Traefik delivery of an IP change. Not an execution: the agent applies the snapshot later and elsewhere. */
+function DeliveryRow(props: { delivery: TraefikDelivery }) {
+  const stage = () => (props.delivery.stage ? DELIVERY_STAGE[props.delivery.stage] : null);
+  return (
+    <li class="flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="delivery-row">
+      <Show when={props.delivery.at}>
+        {(at) => <span class="font-mono text-xs text-muted-foreground">{at()}</span>}
+      </Show>
+      <Show when={stage()}>
+        {(current) => <ExecutionStatusIcon status={current().status} label={current().label} />}
+      </Show>
+      <span class="font-medium">
+        Traefik delivery — {props.delivery.providerName ?? "Agent no longer exists"} · {props.delivery.group}
+      </span>
+      <Show
+        when={stage()}
+        fallback={<span class="text-xs text-muted-foreground">Delivered together with a later change</span>}
+      >
+        {(current) => <span class="text-xs text-muted-foreground">{current().label}</span>}
+      </Show>
+      <Show when={props.delivery.error}>
+        {(error) => <span class="text-xs text-muted-foreground">— {error()}</span>}
+      </Show>
+    </li>
   );
 }
 
@@ -167,7 +212,7 @@ export default function DeviceHistory() {
                     </CardHeader>
                     <CardContent>
                       <Show
-                        when={change.executions.length > 0}
+                        when={change.executions.length > 0 || (change.deliveries ?? []).length > 0}
                         fallback={<p class="text-sm text-muted-foreground">No Actions were configured for this change.</p>}
                       >
                         <ul class="space-y-1.5 text-sm">
@@ -187,6 +232,11 @@ export default function DeviceHistory() {
                             )}
                           </For>
                         </ul>
+                        <Show when={(change.deliveries ?? []).length > 0}>
+                          <ul class="space-y-1.5 text-sm" classList={{ "mt-3 border-t pt-3": change.executions.length > 0 }} aria-label="Traefik deliveries">
+                            <For each={change.deliveries}>{(delivery) => <DeliveryRow delivery={delivery} />}</For>
+                          </ul>
+                        </Show>
                       </Show>
                     </CardContent>
                   </Card>

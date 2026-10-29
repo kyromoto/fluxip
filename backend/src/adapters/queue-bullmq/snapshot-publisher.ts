@@ -48,9 +48,15 @@ export class SnapshotPublisher {
   /**
    * Computes the provider's current snapshot and publishes a new version only if the content changed.
    * Returns null when the provider is gone or the state can't be published (too large). `causationId`
-   * becomes the correlation id of a *new* version.
+   * becomes the correlation id of a *new* version; `absorbedCausationIds` are the further changes that went
+   * into it and are recorded on the event so the device history can tell they were delivered (specs/009).
    */
-  publish(accountId: string, providerId: string, causationId?: string): Promise<PublishResult | null> {
+  publish(
+    accountId: string,
+    providerId: string,
+    causationId?: string,
+    absorbedCausationIds: string[] = [],
+  ): Promise<PublishResult | null> {
     return this.mutex.run(providerId, async () => {
       const { store, eventStore, config } = this.deps;
       const loaded = await store.loadActive(accountId, providerId);
@@ -84,13 +90,24 @@ export class SnapshotPublisher {
           limit: config.agentSnapshotMaxBytes,
           correlationId,
         });
-        const failed: TraefikProviderSnapshotPublishFailedData = { reason: "too_large", correlationId, failedAt: now };
+        const failed: TraefikProviderSnapshotPublishFailedData = {
+          reason: "too_large",
+          correlationId,
+          ...(absorbedCausationIds.length > 0 && { absorbedCausationIds }),
+          failedAt: now,
+        };
         await store.append(accountId, providerId, TraefikProviderEventName.SnapshotPublishFailed, failed);
         return null;
       }
 
       const counts = snapshotCounts(content);
-      const data: TraefikProviderSnapshotPublishedData = { contentHash, ...counts, correlationId, publishedAt: now };
+      const data: TraefikProviderSnapshotPublishedData = {
+        contentHash,
+        ...counts,
+        correlationId,
+        ...(absorbedCausationIds.length > 0 && { absorbedCausationIds }),
+        publishedAt: now,
+      };
       const event = await store.append(accountId, providerId, TraefikProviderEventName.SnapshotPublished, data);
       logger.info("Snapshot {version} published for provider {providerId}", {
         accountId,

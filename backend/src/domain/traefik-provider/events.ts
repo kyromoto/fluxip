@@ -53,12 +53,15 @@ export interface TraefikProviderSnapshotPublishedData {
   groupCount: number;
   entryCount: number;
   correlationId: string;
+  /** `ip_changed` events folded into this snapshot besides the one that is its `correlationId` (specs/009 research.md §2). */
+  absorbedCausationIds?: string[];
   publishedAt: string;
 }
 
 export interface TraefikProviderSnapshotPublishFailedData {
   reason: "too_large" | "internal";
   correlationId: string;
+  absorbedCausationIds?: string[];
   failedAt: string;
 }
 

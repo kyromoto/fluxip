@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { actionReducer, initialActionState, type ActionState } from "../../../domain/action/action-aggregate.js";
-import { ACTION_AGGREGATE_TYPE } from "../../../domain/action/events.js";
+import {
+  ACTION_AGGREGATE_TYPE,
+  TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE,
+  type TraefikConfigDeliveryConfig,
+} from "../../../domain/action/events.js";
 import {
   actionExecutionReducer,
   initialActionExecutionState,
@@ -10,6 +14,16 @@ import { ACTION_EXECUTION_AGGREGATE_TYPE } from "../../../domain/action-executio
 import { IP_CLIENT_AGGREGATE_TYPE, IpClientEventName } from "../../../domain/ip-client/events.js";
 import { initialIpClientState, ipClientReducer } from "../../../domain/ip-client/ip-client-aggregate.js";
 import { loadAggregate } from "../../../domain/replay.js";
+import {
+  deriveDeliveries,
+  type DeliveryActionRef,
+  type DeliveryProvider,
+} from "../../../domain/traefik-provider/delivery-history.js";
+import { TRAEFIK_PROVIDER_AGGREGATE_TYPE } from "../../../domain/traefik-provider/events.js";
+import {
+  initialTraefikProviderState,
+  traefikProviderReducer,
+} from "../../../domain/traefik-provider/traefik-provider-aggregate.js";
 import type { EventStore } from "../../../ports/event-store.js";
 import { getAuth } from "../../auth-logto/oidc-middleware.js";
 
@@ -80,10 +94,36 @@ export function createIpClientHistoryRoutes(deps: IpClientHistoryRouteDeps): Hon
       }
     }
 
+    // Traefik delivery actions never run as executions; their delivery is derived from the provider's events
+    // (specs/009). Detached actions are kept: their config survives, and what they delivered stays true.
+    const deliveryActions: DeliveryActionRef[] = [];
+    for (const [actionId, state] of relevantActions) {
+      if (state.type !== TRAEFIK_CONFIG_DELIVERY_ACTION_TYPE) continue;
+      const config = state.config as TraefikConfigDeliveryConfig | null;
+      if (config) deliveryActions.push({ actionId, traefikProviderId: config.traefikProviderId, group: config.group });
+    }
+    const providers = new Map<string, DeliveryProvider>();
+    for (const providerId of new Set(deliveryActions.map((a) => a.traefikProviderId))) {
+      const { state, events: providerEvents } = await loadAggregate(
+        deps.eventStore,
+        { accountId: auth.accountId, aggregateType: TRAEFIK_PROVIDER_AGGREGATE_TYPE, aggregateId: providerId },
+        initialTraefikProviderState,
+        traefikProviderReducer,
+      );
+      const active = state.providerId === providerId && state.accountId === auth.accountId && state.status === "active";
+      providers.set(providerId, { name: active ? state.name : null, events: providerEvents });
+    }
+    const deliveries = deriveDeliveries({
+      ipChangedEventIds: ipChangedEvents.map((e) => e.id),
+      actions: deliveryActions,
+      providers,
+    });
+
     const items = ipChangedEvents.map((event) => ({
       ipChangedEventId: event.id,
       time: event.time,
       data: event.data,
+      deliveries: deliveries.get(event.id) ?? [],
       executions: executions
         .filter((ex) => ex.causationEventId === event.id)
         .map((ex) => ({

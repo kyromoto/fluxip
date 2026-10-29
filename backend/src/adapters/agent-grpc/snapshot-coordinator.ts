@@ -7,12 +7,13 @@ import type { SessionRegistry } from "./session-registry.js";
 const logger = getAppLogger(["snapshot-coordinator"]);
 
 export interface SnapshotPublishing {
-  publish(accountId: string, providerId: string, causationId?: string): Promise<PublishResult | null>;
+  publish(accountId: string, providerId: string, causationId?: string, absorbedCausationIds?: string[]): Promise<PublishResult | null>;
 }
 
 interface Pending {
   accountId: string;
-  causationId?: string;
+  /** Causes of the collapsed triggers in arrival order; the last one becomes the snapshot's correlation id. */
+  causationIds: string[];
   timer: ReturnType<typeof setTimeout> | null;
   running: boolean;
   dirty: boolean;
@@ -35,9 +36,9 @@ export class SnapshotCoordinator implements SnapshotScheduler {
   async schedule(accountId: string, providerIds: string[], causationId?: string): Promise<void> {
     if (this.stopped) return;
     for (const providerId of new Set(providerIds)) {
-      const entry = this.pending.get(providerId) ?? { accountId, timer: null, running: false, dirty: false };
+      const entry = this.pending.get(providerId) ?? { accountId, causationIds: [], timer: null, running: false, dirty: false };
       entry.accountId = accountId;
-      if (causationId) entry.causationId = causationId;
+      if (causationId) entry.causationIds.push(causationId);
       this.pending.set(providerId, entry);
       if (entry.running) {
         entry.dirty = true;
@@ -53,11 +54,12 @@ export class SnapshotCoordinator implements SnapshotScheduler {
     entry.timer = null;
     entry.running = true;
     entry.dirty = false;
-    const causationId = entry.causationId;
-    entry.causationId = undefined;
+    const causationId = entry.causationIds.at(-1);
+    const absorbedCausationIds = entry.causationIds.slice(0, -1);
+    entry.causationIds = [];
     try {
       const work = async (): Promise<void> => {
-        const result = await this.deps.publisher.publish(entry.accountId, providerId, causationId);
+        const result = await this.deps.publisher.publish(entry.accountId, providerId, causationId, absorbedCausationIds);
         if (result?.changed) {
           const pushed = this.deps.registry.push(providerId, { type: "snapshot", ...result.snapshot });
           logger.info("Snapshot {version} {delivery} for provider {providerId}", {

@@ -215,3 +215,112 @@ describe("Device history pagination", () => {
     expect((select as HTMLSelectElement).value).toBe("10");
   });
 });
+
+describe("Device history Traefik deliveries", () => {
+  const delivery = (overrides: Record<string, unknown> = {}) => ({
+    actionId: "t1",
+    providerName: "Nord",
+    group: "home",
+    kind: "delivered",
+    stage: "applied",
+    at: "at-1",
+    error: null,
+    ...overrides,
+  });
+
+  function mockDeliveries(deliveries: unknown[], executions: unknown[] = []) {
+    mockedApi.get.mockImplementation(async (path: string) => {
+      if (path === "/ip-clients/dev-1") return { ipClientId: "dev-1", label: "Router" };
+      return { items: [{ ipChangedEventId: "e1", time: "change-01", data: { newIPv4: "203.0.113.1" }, executions, deliveries }] };
+    });
+  }
+
+  it("shows agent, group, stage and time for each stage, with the failure reason", async () => {
+    mockDeliveries([
+      delivery({ stage: "published", at: "at-pub", actionId: "t1" }),
+      delivery({ stage: "applied", at: "at-app", actionId: "t2", providerName: "Süd", group: "edge" }),
+      delivery({ stage: "failed", at: "at-fail", actionId: "t3", providerName: "Ost", group: "lab", error: "template broken" }),
+    ]);
+    render(() => <DeviceHistory />);
+    const rows = await screen.findAllByTestId("delivery-row");
+
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringContaining("at-pub"),
+      expect.stringContaining("at-app"),
+      expect.stringContaining("at-fail"),
+    ]);
+    expect(within(rows[0]!).getByText(/Nord · home/)).toBeTruthy();
+    expect(within(rows[0]!).getByText("Published, awaiting agent", { selector: "span:not([role=img])" })).toBeTruthy();
+    expect(within(rows[1]!).getByText(/Süd · edge/)).toBeTruthy();
+    expect(within(rows[1]!).getByText("Applied", { selector: "span:not([role=img])" })).toBeTruthy();
+    expect(within(rows[2]!).getByText(/Ost · lab/)).toBeTruthy();
+    expect(within(rows[2]!).getByText("— template broken")).toBeTruthy();
+    expect(rows.map((r) => r.querySelector("[role=img]")!.getAttribute("data-status"))).toEqual(["running", "succeeded", "failed"]);
+  });
+
+  it("keeps deliveries apart from executions and never calls them executions", async () => {
+    mockOneChangeWithDelivery();
+    render(() => <DeviceHistory />);
+    await screen.findByText(/host0\.example\.com/);
+
+    const rows = screen.getAllByTestId("delivery-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.closest("ul")!.getAttribute("aria-label")).toBe("Traefik deliveries");
+    expect(rows[0]!.closest("ul")).not.toBe(screen.getByText(/host0\.example\.com/).closest("ul"));
+    expect(rows[0]!.textContent).toContain("Traefik delivery");
+    expect(rows[0]!.textContent).not.toMatch(/execution/i);
+    // Existing execution icons are unchanged.
+    expect(screen.getAllByRole("img").map((i) => i.getAttribute("title"))).toEqual(["Succeeded", "Applied"]);
+  });
+
+  function mockOneChangeWithDelivery() {
+    mockDeliveries([delivery()], [
+      {
+        executionId: "x0",
+        actionId: "a0",
+        action: { type: "hetzner_cloud_dns_update", zone: "example.com", recordName: "host0" },
+        status: "succeeded",
+        attempt: 1,
+        error: null,
+        startedAt: "start",
+        completedAt: "done-0",
+        failedAt: null,
+      },
+    ]);
+  }
+
+  it("explains a change delivered together with a later one, without stage or time", async () => {
+    mockDeliveries([delivery({ kind: "combined", stage: null, at: null })]);
+    render(() => <DeviceHistory />);
+    const row = await screen.findByTestId("delivery-row");
+    expect(within(row).getByText("Delivered together with a later change")).toBeTruthy();
+    expect(row.querySelector("[role=img]")).toBeNull();
+    expect(within(row).getByText(/Nord · home/)).toBeTruthy();
+  });
+
+  it("names a deleted agent without failing", async () => {
+    mockDeliveries([delivery({ providerName: null })]);
+    render(() => <DeviceHistory />);
+    const row = await screen.findByTestId("delivery-row");
+    expect(within(row).getByText(/Agent no longer exists · home/)).toBeTruthy();
+    expect(within(row).getByText("Applied", { selector: "span:not([role=img])" })).toBeTruthy();
+  });
+
+  it("shows no delivery rows, and the usual empty note, for a change without deliveries", async () => {
+    mockDeliveries([]);
+    render(() => <DeviceHistory />);
+    await screen.findByText("203.0.113.1");
+    expect(screen.queryByTestId("delivery-row")).toBeNull();
+    expect(screen.getByText("No Actions were configured for this change.")).toBeTruthy();
+  });
+
+  it("copes with a backend that sends no deliveries field", async () => {
+    mockedApi.get.mockImplementation(async (path: string) => {
+      if (path === "/ip-clients/dev-1") return { ipClientId: "dev-1", label: "Router" };
+      return { items: [{ ipChangedEventId: "e1", time: "change-01", data: { newIPv4: "203.0.113.1" }, executions: [] }] };
+    });
+    render(() => <DeviceHistory />);
+    await screen.findByText("203.0.113.1");
+    expect(screen.getByText("No Actions were configured for this change.")).toBeTruthy();
+  });
+});

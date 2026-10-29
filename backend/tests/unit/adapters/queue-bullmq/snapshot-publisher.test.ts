@@ -62,6 +62,22 @@ describe("SnapshotPublisher.publishNow", () => {
     expect(second!.correlationId).toBe("corr-2");
   });
 
+  it("records the absorbed causes on the new version, and not on an unchanged one (specs/009)", async () => {
+    const p = publisher();
+    await addDevice("d1", "203.0.113.1");
+    await p.publish(ACCOUNT, PROVIDER, "corr-2", ["corr-1"]);
+    await p.publish(ACCOUNT, PROVIDER, "corr-3", ["corr-2b"]);
+    const events = await eventStore.readStream({ accountId: ACCOUNT, aggregateType: "traefik_provider", aggregateId: PROVIDER });
+    const published = events.filter((e) => e.eventName === E.SnapshotPublished).map((e) => e.data);
+    expect(published).toEqual([expect.objectContaining({ correlationId: "corr-2", absorbedCausationIds: ["corr-1"] })]);
+  });
+
+  it("leaves the field out when nothing was absorbed (specs/009)", async () => {
+    await publisher().publish(ACCOUNT, PROVIDER, "corr-1", []);
+    const events = await eventStore.readStream({ accountId: ACCOUNT, aggregateType: "traefik_provider", aggregateId: PROVIDER });
+    expect(events.find((e) => e.eventName === E.SnapshotPublished)!.data).not.toHaveProperty("absorbedCausationIds");
+  });
+
   it("serializes concurrent calls into a single publish", async () => {
     const p = publisher();
     await addDevice("d1", "203.0.113.1");
