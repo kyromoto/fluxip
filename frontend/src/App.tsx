@@ -4,6 +4,7 @@ import { ProtectedLayout } from "./components/layout/ProtectedLayout";
 
 const IpClients = lazy(() => import("./pages/IpClients"));
 const DeviceHistory = lazy(() => import("./pages/DeviceHistory"));
+const DeviceSettings = lazy(() => import("./pages/DeviceSettings"));
 const Actions = lazy(() => import("./pages/Actions"));
 const Credentials = lazy(() => import("./pages/Credentials"));
 const TraefikProviders = lazy(() => import("./pages/TraefikProviders"));
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/ip-clients" component={IpClients} />
         <Route path="/ip-clients/:ipClientId/actions" component={Actions} />
         <Route path="/ip-clients/:ipClientId/history" component={DeviceHistory} />
+        <Route path="/ip-clients/:ipClientId/settings" component={DeviceSettings} />
         <Route path="/actions/:actionId/executions" component={ExecutionHistory} />
         <Route path="/credentials" component={Credentials} />
         <Route path="/agents" component={TraefikProviders} />

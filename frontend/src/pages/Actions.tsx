@@ -6,16 +6,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/u
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
 import { ActionWizard, type ExistingAction } from "~/flows/action-wizard/ActionWizard";
-import { ReviewCredentialStep } from "~/flows/device-wizard/steps/ReviewCredentialStep";
 import { DELIVERY_LABEL, type DeliveryStatusItem } from "~/lib/traefik-providers";
 import { api } from "~/services/api";
 
 type AddressFamily = "ipv4" | "ipv6";
-
-interface IpClientSummary {
-  ipClientId: string;
-  status: "enabled" | "disabled" | "decommissioned";
-}
 
 type FirewallConfigSummary = {
   providerCredentialId: string;
@@ -96,11 +90,6 @@ function toExistingAction(action: ActionSummary): ExistingAction {
 export default function Actions() {
   const params = useParams<{ ipClientId: string }>();
 
-  const [device, { refetch: refetchDevice }] = createResource(
-    () => params.ipClientId,
-    (ipClientId) => api.get<IpClientSummary>(`/ip-clients/${ipClientId}`),
-  );
-
   const [actions, { refetch }] = createResource(
     () => params.ipClientId,
     async (ipClientId) => {
@@ -120,9 +109,6 @@ export default function Actions() {
   );
 
   const [wizardTarget, setWizardTarget] = createSignal<"new" | ExistingAction | null>(null);
-  const [rotatedCredential, setRotatedCredential] = createSignal<{ username: string; password: string } | null>(
-    null,
-  );
   const [error, setError] = createSignal<unknown>(null);
 
   async function handleWizardDone() {
@@ -151,79 +137,21 @@ export default function Actions() {
     }
   }
 
-  async function handleDeviceToggle(status: IpClientSummary["status"]) {
-    setError(null);
-    try {
-      await api.post(`/ip-clients/${params.ipClientId}/${status === "enabled" ? "disable" : "enable"}`);
-      await refetchDevice();
-    } catch (err) {
-      setError(err);
-    }
-  }
-
-  async function handleDeviceRotate() {
-    setError(null);
-    try {
-      const result = await api.post<{ reportingCredential: { username: string; password: string } }>(
-        `/ip-clients/${params.ipClientId}/rotate-credential`,
-      );
-      setRotatedCredential(result.reportingCredential);
-    } catch (err) {
-      setError(err);
-    }
-  }
-
-  async function handleDeviceDecommission() {
-    setError(null);
-    if (!confirm("Decommission this device? This is irreversible.")) return;
-    try {
-      await api.delete(`/ip-clients/${params.ipClientId}`);
-      await refetchDevice();
-    } catch (err) {
-      setError(err);
-    }
-  }
-
   return (
     <div class="space-y-6">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h1 class="text-2xl font-semibold tracking-tight">Actions</h1>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <Button size="sm" onClick={() => setWizardTarget("new")}>
+            Add an action
+          </Button>
           <Button as="a" href={`/ip-clients/${params.ipClientId}/history`} size="sm" variant="outline">
-            Reported updates
+            History
+          </Button>
+          <Button as="a" href={`/ip-clients/${params.ipClientId}/settings`} size="sm" variant="outline">
+            Settings
           </Button>
         </div>
-        <Show when={device()}>
-          {(client) => (
-            <Show when={client().status !== "decommissioned"}>
-              <div class="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  class="border-amber-500 text-amber-600 hover:bg-amber-500/10 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-400/10"
-                  onClick={() => handleDeviceToggle(client().status)}
-                >
-                  {client().status === "enabled" ? "Disable" : "Enable"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  class="border-amber-500 text-amber-600 hover:bg-amber-500/10 dark:border-amber-400 dark:text-amber-400 dark:hover:bg-amber-400/10"
-                  onClick={() => handleDeviceRotate()}
-                >
-                  Rotate credential
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDeviceDecommission()}>
-                  Decommission
-                </Button>
-              </div>
-            </Show>
-          )}
-        </Show>
-      </div>
-
-      <div class="flex items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Actions</h1>
-        <Button onClick={() => setWizardTarget("new")}>Add an action</Button>
       </div>
 
       <Show when={error()}>
@@ -348,23 +276,6 @@ export default function Actions() {
                 existingAction={target() === "new" ? undefined : (target() as ExistingAction)}
                 onDone={() => void handleWizardDone()}
                 onCancel={() => setWizardTarget(null)}
-              />
-            )}
-          </Show>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={rotatedCredential() !== null} onOpenChange={(open) => !open && setRotatedCredential(null)}>
-        <DialogContent class="max-w-lg">
-          <DialogHeader>
-            <DialogTitle class="sr-only">New reporting credential</DialogTitle>
-          </DialogHeader>
-          <Show when={rotatedCredential()}>
-            {(credential) => (
-              <ReviewCredentialStep
-                username={credential().username}
-                password={credential().password}
-                onDone={() => setRotatedCredential(null)}
               />
             )}
           </Show>
