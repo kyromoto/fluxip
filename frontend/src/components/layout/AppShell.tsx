@@ -28,12 +28,16 @@ export function AppShell(props: { children?: JSX.Element }) {
     <div class="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       <header class="shrink-0 border-b">
         <div class="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div class="flex flex-col items-center gap-1">
-            <A href="/" class="flex items-center gap-2" aria-label="FluxIP home">
-              <Logo size={22} />
-              <span class="text-base font-semibold tracking-tight">FluxIP</span>
+          <div class="flex items-center gap-2.5">
+            <A href="/" class="shrink-0" aria-label="FluxIP home">
+              <Logo size={40} />
             </A>
-            <VersionLabel />
+            <div class="flex flex-col items-start gap-1">
+              <A href="/" class="text-base font-semibold leading-none tracking-tight" tabindex="-1">
+                FluxIP
+              </A>
+              <VersionLabel />
+            </div>
           </div>
           <nav class="flex flex-wrap items-center gap-4 text-sm font-medium">
             <For each={NAV_LINKS}>
