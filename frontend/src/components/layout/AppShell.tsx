@@ -27,7 +27,7 @@ export function AppShell(props: { children?: JSX.Element }) {
   return (
     <div class="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       <header class="shrink-0 border-b">
-        <div class="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div class="flex items-center gap-2.5">
             <A href="/" class="shrink-0" aria-label="FluxIP home">
               <Logo size={40} />
@@ -58,7 +58,7 @@ export function AppShell(props: { children?: JSX.Element }) {
       </div>
       {/* Only the content scrolls; header and breadcrumbs stay put. */}
       <main class="min-h-0 flex-1 overflow-y-auto">
-        <div class="mx-auto max-w-4xl px-4 py-6">{props.children}</div>
+        <div class="mx-auto max-w-6xl px-4 py-6">{props.children}</div>
       </main>
     </div>
   );
