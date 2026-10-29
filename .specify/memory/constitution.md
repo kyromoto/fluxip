@@ -1,21 +1,20 @@
 <!--
 Sync Impact Report
-- Version change: (unratified template) → 1.0.0
-- Modified principles: none (initial ratification)
+- Version change: 1.0.0 → 1.1.0
+- Modified principles: none
 - Added sections:
-  - Core Principles: I. Explicit Commit Authorization
-  - Governance
-- Removed sections:
-  - Principles II-V placeholders (not defined; no additional principles supplied at ratification time — see deferred items)
-  - Optional Section 2 / Section 3 placeholders (no additional constraints or workflow rules supplied beyond Governance)
+  - Core Principles: II. Twelve-Factor Compliance
+- Removed sections: none
 - Templates requiring updates:
-  - ✅ .specify/templates/tasks-template.md (removed "Commit after each task or logical group" from Notes; replaced with a pointer to this constitution's commit-authorization principle)
-  - ✅ .specify/templates/plan-template.md (Constitution Check gate references this file generically; no changes needed)
-  - ✅ .specify/templates/spec-template.md (no commit/process references; no changes needed)
-  - ✅ .claude/skills/speckit-*/SKILL.md (only generic `speckit.git.commit` → `/speckit-git-commit` naming examples; no auto-commit instructions found; no changes needed)
-  - ✅ README.md (release-pipeline references to Conventional Commits are consistent with this principle; no changes needed)
+  - ✅ .specify/templates/plan-template.md (Constitution Check gate references this file generically; the new principle is picked up automatically; no changes needed)
+  - ✅ .specify/templates/spec-template.md (no changes needed)
+  - ✅ .specify/templates/tasks-template.md (no changes needed)
+  - ✅ docs/12-factor-backlog.md (referenced by the new principle as the register of known deviations)
 - Follow-up TODOs:
-  - TODO(ADDITIONAL_PRINCIPLES): This constitution currently defines only the commit-authorization principle, since that is the only governance rule supplied so far. Add further principles (e.g. testing discipline, architecture constraints) as they are decided.
+  - TODO(ADDITIONAL_PRINCIPLES): Add further principles (e.g. testing discipline, architecture constraints) as they are decided.
+
+Previous report (1.0.0, 2026-07-23): initial ratification with Principle I
+(Explicit Commit Authorization) and Governance.
 -->
 
 # FluxIP Constitution
@@ -42,6 +41,47 @@ from the actual diff and prior style — instead of prompting the user for
 wording — keeps the workflow low-friction while still producing consistent,
 convention-following history.
 
+### II. Twelve-Factor Compliance
+
+New and changed code MUST comply with the Twelve-Factor App criteria
+(https://12factor.net). Concretely:
+
+- **Config**: Configuration MUST come only from environment variables and
+  MUST be validated at startup. Production code paths MUST NOT carry
+  development defaults for secrets or hosts.
+- **Backing services**: Postgres, Redis, SMTP, Logto and similar services
+  MUST be attached only via URLs or host/port values from the environment
+  and MUST be replaceable without code changes.
+- **Logs**: Logs MUST be written as an event stream to stdout. The
+  application MUST NOT write or rotate log files itself.
+- **Processes**: Processes MUST be stateless; shared state lives only in
+  Postgres or Redis. Process-local caches are allowed only if they can be
+  rebuilt without loss.
+- **Port binding and concurrency**: The application MUST bind its own ports
+  (configurable via the environment), and process types (web, worker) MUST
+  be separable and independently scalable.
+- **Disposability**: Startup MUST be fast. On SIGTERM the application MUST
+  shut down gracefully (close the HTTP server, queues and connections)
+  within a bounded timeout.
+- **Build, release, run**: Stages MUST be strictly separated. Dependencies,
+  base images and CI actions MUST be pinned, and the same image MUST run in
+  every environment.
+- **Admin processes**: Tasks such as database migrations MUST run as
+  one-off processes, not implicitly at web process start.
+- **Dev/prod parity**: Development, test and production MUST use the same
+  kinds of backing services.
+
+Existing known deviations are tracked in `docs/12-factor-backlog.md`. New
+work MUST NOT worsen them; fixing them is done as separate features. The
+"Constitution Check" in every plan MUST verify this principle, and any
+justified violation MUST be recorded in the plan's Complexity Tracking.
+
+**Rationale**: The application is deployed as container images behind a
+reverse proxy and has to run in several environments and, eventually, as
+several replicas. The twelve-factor rules keep configuration, state, logging
+and operations compatible with that, and a checked backlog stops the
+existing deviations from growing.
+
 ## Governance
 
 This constitution supersedes all other informal practices or ad hoc
@@ -62,4 +102,4 @@ Compliance with this constitution is expected in every session; when
 guidance here and an ad hoc request conflict, this file governs unless the
 user explicitly overrides it for that instance.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-23 | **Last Amended**: 2026-07-23
+**Version**: 1.1.0 | **Ratified**: 2026-07-23 | **Last Amended**: 2026-10-29
