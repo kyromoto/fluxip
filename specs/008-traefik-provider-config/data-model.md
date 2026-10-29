@@ -15,8 +15,8 @@ Aggregat-ID: ULID (`providerId`). Sie ist global eindeutig und Teil der Agent-Ad
 | `deleted` | `deletedAt` | Benutzer löscht (nur ohne verwendende Aktionen, FR-006) |
 | `token_issued` | `tokenId`, `tokenHash`, `last4`, `issuedAt` | Benutzer erzeugt Token (FR-003) |
 | `token_revoked` | `tokenId`, `revokedAt` | Benutzer widerruft |
-| `snapshot_published` | `contentHash`, `groupCount`, `entryCount`, `correlationId`, `publishedAt` | Publisher, nur bei geändertem Inhalt |
-| `snapshot_publish_failed` | `reason` (`too_large` \| `internal`), `correlationId`, `failedAt` | Publisher, z. B. Größenlimit (FR-024) |
+| `snapshot_published` | `contentHash`, `groupCount`, `entryCount`, `correlationId`, `absorbedCausationIds?`, `publishedAt` | Publisher, nur bei geändertem Inhalt |
+| `snapshot_publish_failed` | `reason` (`too_large` \| `internal`), `correlationId`, `absorbedCausationIds?`, `failedAt` | Publisher, z. B. Größenlimit (FR-024) |
 | `agent_connected` | `sessionId`, `tokenId`, `agentVersion`, `protocolVersion`, `maxOfflineSeconds`, `replacedPrevious`, `connectedAt` | Sitzung steht (FR-060, FR-034) |
 | `agent_disconnected` | `sessionId`, `reason` (`closed` \| `superseded` \| `revoked` \| `timeout` \| `error`), `disconnectedAt` | Sitzung endet |
 | `snapshot_applied` | `version`, `correlationId`, `agentVersion`, `stale`, `files[{name, sha256}]`, `templates[{name, sha256}]`, `traefikCheck?`, `appliedAt` | Bericht `ok` (FR-054) |

@@ -24,7 +24,7 @@ Response bodies below are illustrative field lists, not a full OpenAPI schema â€
 | `POST /api/ip-clients/{id}/enable` \| `/disable` | Toggle without deleting (FR-017) | |
 | `DELETE /api/ip-clients/{id}` | Decommission | Irreversible (data-model.md `ip_client.decommissioned`) |
 | `PUT /api/ip-clients/{id}/notification-preference` | Set per-client notification mode | Body: `{ preference: "off" \| "failures_only" \| "all" }` (FR-029) |
-| `GET /api/ip-clients/{id}/history` | Paginated feed of `ip_changed` events + resulting `action_execution`s | Backs User Story 3. Each execution carries `actionId` plus an `action` summary (`type` and non-secret target: `zone`/`recordName` or `firewallId`/`description`) so the UI can name which Action each outcome belongs to |
+| `GET /api/ip-clients/{id}/history` | Paginated feed of `ip_changed` events + resulting `action_execution`s | Backs User Story 3. Each execution carries `actionId` plus an `action` summary (`type` and non-secret target: `zone`/`recordName` or `firewallId`/`description`) so the UI can name which Action each outcome belongs to. Each item also carries `deliveries` (Traefik delivery per change, never part of `executions`; see 009 `contracts/history-api.md`) |
 
 ## Actions
 
