@@ -14,6 +14,7 @@ export interface Config {
   logtoManagementClientSecret: string;
   logtoManagementApiBaseUrl: string;
   port: number;
+  bindAddress: string;
   /** Base64-encoded 32-byte key used to encrypt Provider Credential secrets at rest (AES-256-GCM). */
   credentialEncryptionKey: string;
   smtpHost: string;
@@ -100,6 +101,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     logtoManagementClientSecret: optionalString(env, "BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET"),
     logtoManagementApiBaseUrl: optionalString(env, "BACKEND_LOGTO_MANAGEMENT_API_BASE_URL"),
     port: optionalInt(env, "BACKEND_PORT", 8080),
+    bindAddress: optionalString(env, "BACKEND_BIND_ADDRESS", "0.0.0.0").trim() || "0.0.0.0",
     credentialEncryptionKey: requireString(env, "BACKEND_CREDENTIAL_ENCRYPTION_KEY"),
     smtpHost: optionalString(env, "BACKEND_SMTP_HOST", "localhost"),
     smtpPort: optionalInt(env, "BACKEND_SMTP_PORT", 1025),

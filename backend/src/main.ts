@@ -96,7 +96,7 @@ async function main(): Promise<void> {
   // hosts with IPv6 loopback restricted (net.ipv6.bindv6only or similar) ends
   // up IPv6-only, silently unreachable via 127.0.0.1/localhost — the process
   // logs "listening" and never receives a connection.
-  serve({ fetch: app.fetch, port: config.port, hostname: "0.0.0.0" }, (info) => {
+  serve({ fetch: app.fetch, port: config.port, hostname: config.bindAddress }, (info) => {
     logger.info("FluxIP backend listening on port {port}", { port: info.port });
   });
 

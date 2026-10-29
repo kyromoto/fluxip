@@ -61,7 +61,7 @@ export class GrpcAgentServer {
 
   constructor(private readonly deps: GrpcAgentServerDeps) {}
 
-  async start(port = this.deps.config.agentPort, host = "0.0.0.0"): Promise<number> {
+  async start(port = this.deps.config.agentPort, host = this.deps.config.bindAddress): Promise<number> {
     const definition = protoLoader.loadSync(protoPath(), {
       keepCase: false,
       longs: Number,

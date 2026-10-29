@@ -28,6 +28,7 @@ Read by `backend/src/config/env.ts` (`loadConfig()`) — a missing "Yes" var thr
 | `BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET` | | | Client secret matching `BACKEND_LOGTO_MANAGEMENT_CLIENT_ID`. |
 | `BACKEND_LOGTO_MANAGEMENT_API_BASE_URL` | | | Base URL of Logto's Management API. |
 | `BACKEND_PORT` | | `8080` | HTTP port the backend listens on. |
+| `BACKEND_BIND_ADDRESS` | | `0.0.0.0` | Interface the HTTP and agent gRPC listeners bind to. |
 | `BACKEND_SMTP_HOST` | | `localhost` | Outbound SMTP relay host for account notifications. |
 | `BACKEND_SMTP_PORT` | | `1025` | SMTP relay port. |
 | `BACKEND_SMTP_USER` | | | SMTP auth username. |
