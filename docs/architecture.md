@@ -1,0 +1,10 @@
+# Architecture
+
+- **Backend**: TypeScript/Node.js 22, [Hono](https://hono.dev/) web framework, pragmatic hexagonal architecture (ports only where a real second implementation is imminent: event store, action executors, notification channels).
+- **Event store**: PostgreSQL, append-only `events` table — source of truth for every aggregate (`account`, `ip_client`, `action`, `action_execution`, `provider_credential`, `notification_channel`).
+- **Async pipeline**: BullMQ (Redis-backed) — a 30s debounce window per IP Client absorbs flapping, then fans out one execution job per enabled Action with deterministic, idempotent job IDs.
+- **Projections**: Redis read models (device lists, execution history) — always rebuildable from Postgres, never consulted for business decisions.
+- **Auth**: [Logto](https://logto.io/) as the OIDC identity provider — FluxIP verifies JWTs via JWKS and never stores a password. In-app password change/account deletion are proxied to Logto's Management API.
+- **Frontend**: SolidJS + Vite, styled with Tailwind CSS and [Kobalte](https://kobalte.dev/)/[Solid UI](https://www.solid-ui.com/) components (copied into the repo, not installed as a library) — auto dark/light via Tailwind's `media` strategy, no manual toggle. Account onboarding, Trigger Device creation, and Action configuration are guided multi-step flows; everything else stays a direct, single-step view. See `specs/003-end-user-ui-redesign/` for the full spec/plan/research.
+- **Traefik agents** (`agent/`, `specs/008-traefik-provider-config/`): a small Go binary next to a remote Traefik receives its devices and IPs from FluxIP over a long-lived gRPC session, renders local templates, and writes the result atomically into Traefik's file-provider directory. See [Traefik agents](traefik-agents.md).
+- **Metrics**: Prometheus-compatible `/metrics`, including per-aggregate replay duration/event-count histograms (`fluxip_replay_duration_seconds`, `fluxip_replay_events_total`), so aggregates that get slower to replay over time are visible before snapshotting is ever needed.

@@ -1,199 +1,38 @@
 # FluxIP
 
-FluxIP triggers configurable actions — starting with updating a Hetzner DNS record — when a registered Trigger Device (e.g. a FritzBox router) reports a public IP change via a DynDNS-compatible endpoint. It is a multi-tenant, event-sourced system: every state change is an immutable event in Postgres, Redis holds only disposable read models, and BullMQ handles the debounce/fan-out/retry pipeline so multiple app instances can process events in parallel without double-processing.
+**Your home IP changed. Everything that depends on it follows — automatically.**
 
-See `specs/001-ip-change-automation/` for the full spec (`spec.md`), architecture decisions (`research.md`, `data-model.md`, `contracts/`), and `quickstart.md` for the scenario-by-scenario validation guide this README summarizes.
+Dynamic IP at home or in the office? FluxIP notices the moment your router reports a new address and updates everything that needs to know: your Hetzner DNS record, your Hetzner firewall, and the allow-lists on your Traefik servers. No scripts, no cron jobs, no locked-out admin panel after the provider reassigns your address.
 
-## Architecture at a glance
+## Why you'll like it
 
-- **Backend**: TypeScript/Node.js 22, [Hono](https://hono.dev/) web framework, pragmatic hexagonal architecture (ports only where a real second implementation is imminent: event store, action executors, notification channels).
-- **Event store**: PostgreSQL, append-only `events` table — source of truth for every aggregate (`account`, `ip_client`, `action`, `action_execution`, `provider_credential`, `notification_channel`).
-- **Async pipeline**: BullMQ (Redis-backed) — a 30s debounce window per IP Client absorbs flapping, then fans out one execution job per enabled Action with deterministic, idempotent job IDs.
-- **Projections**: Redis read models (device lists, execution history) — always rebuildable from Postgres, never consulted for business decisions.
-- **Auth**: [Logto](https://logto.io/) as the OIDC identity provider — FluxIP verifies JWTs via JWKS and never stores a password. In-app password change/account deletion are proxied to Logto's Management API.
-- **Frontend**: SolidJS + Vite, styled with Tailwind CSS and [Kobalte](https://kobalte.dev/)/[Solid UI](https://www.solid-ui.com/) components (copied into the repo, not installed as a library) — auto dark/light via Tailwind's `media` strategy, no manual toggle. Account onboarding, Trigger Device creation, and Action configuration are guided multi-step flows; everything else stays a direct, single-step view. See `specs/003-end-user-ui-redesign/` for the full spec/plan/research.
-- **Traefik agents** (`agent/`, `specs/008-traefik-provider-config/`): a small Go binary next to a remote Traefik receives its devices and IPs from FluxIP over a long-lived gRPC session, renders local templates, and writes the result atomically into Traefik's file-provider directory. See [Traefik agents](#traefik-agents).
-- **Metrics**: Prometheus-compatible `/metrics`, including per-aggregate replay duration/event-count histograms (`fluxip_replay_duration_seconds`, `fluxip_replay_events_total`), so aggregates that get slower to replay over time are visible before snapshotting is ever needed.
+- **Works with the router you already have.** A FritzBox (or anything that speaks DynDNS) reports its IP to FluxIP, nothing to install at home.
+- **One change, all consequences.** Attach as many actions as you like to a device: update a DNS record, open a firewall rule, refresh a Traefik allow-list.
+- **Calm when the line is not.** Flapping connections are smoothed out, failed actions are retried with backoff, and you get an email when something needs attention.
+- **See what happened.** Every IP change and every action run lands in a history you can browse, so "why can't I reach my server?" has an answer.
+- **Guided setup.** Adding a device or an action is a short step-by-step flow, with a UI that follows your light or dark mode.
+- **Safe by design.** Sign-in is handled by [Logto](https://logto.io/), provider tokens are encrypted at rest, and Traefik agents only connect outbound, so you open no ports.
+- **Yours to run.** Self-hosted with Docker Compose, multi-tenant, and open about its internals (see [Architecture](docs/architecture.md)).
 
-## Prerequisites
+## Quickstart
 
-- Docker + Docker Compose
-- [pnpm](https://pnpm.io/) (via `corepack enable`) for local (non-Docker) development
-- A Hetzner DNS zone with an existing A/AAAA record, and a Hetzner **Cloud API** token for it (for the DNS-Update Action) — tokens issued by the older, separate DNS Console/API are not accepted (FR-035)
-
-## Configuration
-
-All configuration is via environment variables — no config files are baked into the image (12-factor). Copy `.env.example` to `.env` and fill in the required values:
+Prerequisites: Docker + Docker Compose, and a Hetzner DNS zone with an existing A/AAAA record plus a Hetzner **Cloud API** token for it (for the DNS-Update Action — tokens from the older DNS Console/API are not accepted).
 
 ```bash
-cp .env.example .env
+cp .env.example .env     # fill in the required values, see docs/configuration.md
+docker compose up -d     # Postgres, Redis, Logto, backend (:8080), frontend (:3000)
 ```
 
-### Backend
+The backend applies its Postgres migrations on startup. For local development without Docker for the app itself, see [docs/development.md](docs/development.md).
 
-Read by `backend/src/config/env.ts` (`loadConfig()`) — a missing "Yes" var throws at startup, before the port ever opens.
+## Documentation
 
-| Name | Required | Default | Description |
-|---|---|---|---|
-| `BACKEND_CLOUDEVENTS_SOURCE` | X | | CloudEvents `source` field for every domain event envelope (research.md §3). |
-| `BACKEND_CLOUDEVENTS_TYPE_PREFIX` | X | | CloudEvents `type` prefix, assembled as `${PREFIX}.<aggregate>.<event>`. |
-| `BACKEND_DATABASE_URL` | X | | Postgres connection string (event store). |
-| `BACKEND_REDIS_URL` | X | | Redis connection string (BullMQ + projections). |
-| `BACKEND_LOGTO_ENDPOINT` | X | | Logto OIDC issuer endpoint used for JWT verification. |
-| `BACKEND_CREDENTIAL_ENCRYPTION_KEY` | X | | 32-byte, base64-encoded key (`openssl rand -base64 32`) that encrypts Provider Credential secrets (e.g. Hetzner Cloud API tokens) at rest (AES-256-GCM). IP Client reporting credentials are never encrypted or logged — they're always system-generated and only a salted hash is ever persisted. |
-| `BACKEND_DEFAULT_IP_CLIENT_LIMIT` | | `5` | Default per-account IP Client device limit (FR-033). |
-| `BACKEND_ACTION_RETRY_ATTEMPTS` | | `5` | BullMQ retry attempts for a failed Action execution. |
-| `BACKEND_ACTION_RETRY_BASE_DELAY_MS` | | `30000` | Base delay (ms) for exponential retry backoff. |
-| `BACKEND_IP_CLIENT_DEBOUNCE_MS` | | `30000` | Debounce window (ms) absorbing IP-flapping before an Action fires. |
-| `BACKEND_LOGTO_APP_ID` | | | Logto application ID for the backend's own (optional) Logto app — distinct from the frontend's `FRONTEND_LOGTO_APP_ID`. |
-| `BACKEND_LOGTO_APP_SECRET` | | | Logto application secret matching `BACKEND_LOGTO_APP_ID`. |
-| `BACKEND_LOGTO_MANAGEMENT_CLIENT_ID` | | | Client ID of the machine-to-machine Logto app used to proxy in-app password changes via the Management API. |
-| `BACKEND_LOGTO_MANAGEMENT_CLIENT_SECRET` | | | Client secret matching `BACKEND_LOGTO_MANAGEMENT_CLIENT_ID`. |
-| `BACKEND_LOGTO_MANAGEMENT_API_BASE_URL` | | | Base URL of Logto's Management API. |
-| `BACKEND_PORT` | | `8080` | HTTP port the backend listens on. |
-| `BACKEND_SMTP_HOST` | | `localhost` | Outbound SMTP relay host for account notifications. |
-| `BACKEND_SMTP_PORT` | | `1025` | SMTP relay port. |
-| `BACKEND_SMTP_USER` | | | SMTP auth username. |
-| `BACKEND_SMTP_PASSWORD` | | | SMTP auth password. |
-| `BACKEND_SMTP_SECURE` | | `false` | Use implicit TLS for the SMTP connection. |
-| `BACKEND_NOTIFICATION_FROM_ADDRESS` | | `fluxip@localhost` | `From` address for outbound notification emails. |
-| `BACKEND_APP_LOG_LEVEL` | | `info` | Lowest level recorded for the Application Log (stdout): `debug`\|`info`\|`warning`\|`error`\|`fatal`. |
-| `BACKEND_ACCESS_LOG_FILE_PATH` | | `logs/access.log` | Rotating Access Log file path, relative to the backend process's working directory. |
-| `BACKEND_ACCESS_LOG_MAX_SIZE_BYTES` | | `10485760` | Rotate the Access Log once it exceeds this size (bytes). |
-| `BACKEND_ACCESS_LOG_MAX_FILES` | | `5` | Number of rotated Access Log files retained before the oldest is discarded. |
-
-### Frontend (container runtime)
-
-Read only by the `frontend` role's container-start entrypoint (`docker-entrypoint.sh`), which regenerates `frontend/dist/config.js` — consumed by the app as `window.__ENV__` — on every container start, so the same built image can be redeployed with different values without a rebuild (`specs/006-frontend-runtime-config/`). A missing value is logged at container start and warned about in the browser console rather than failing the container.
-
-| Name | Required | Default | Description |
-|---|---|---|---|
-| `FRONTEND_LOGTO_ENDPOINT` | X | | Logto OIDC issuer endpoint the frontend's `@logto/browser` client connects to. |
-| `FRONTEND_LOGTO_APP_ID` | X | | Logto SPA application ID (distinct from `BACKEND_LOGTO_APP_ID`, a different Logto application). |
-| `FRONTEND_LOGTO_API_RESOURCE` | X | | API resource indicator requested so Logto issues a signed JWT rather than an opaque token. |
-| `FRONTEND_BACKEND_URL` | X | | Backend URL prefixed onto every frontend API request. |
-
-### Frontend (local `vite dev` only)
-
-Build-time fallbacks read by `frontend/src/config.ts` when `window.__ENV__` isn't present (i.e. `vite dev`, never in Docker) — irrelevant to a container deployment.
-
-| Name | Required | Default | Description |
-|---|---|---|---|
-| `VITE_LOGTO_ENDPOINT` | | | Local dev fallback for `FRONTEND_LOGTO_ENDPOINT`. |
-| `VITE_LOGTO_APP_ID` | | | Local dev fallback for `FRONTEND_LOGTO_APP_ID`. |
-| `VITE_LOGTO_API_RESOURCE` | | | Local dev fallback for `FRONTEND_LOGTO_API_RESOURCE`. |
-| `VITE_BACKEND_URL` | | | Local dev fallback for `FRONTEND_BACKEND_URL`. |
-
-## Running with Docker Compose
-
-```bash
-docker compose up -d
-```
-
-This brings up Postgres, Redis, Logto, the backend (`app`), and the frontend as separate containers. The backend runs its own Postgres migrations on startup.
-
-Both `app` and `frontend` build from the same root [`Dockerfile`](Dockerfile) — see [Release process](#release-process) below for why there's only one image.
-
-## Local development (without Docker for the app itself)
-
-```bash
-pnpm install
-docker compose up -d postgres redis logto   # infra only
-pnpm run dev:backend                         # backend on :8080 (tsx watch)
-pnpm run dev:frontend                        # frontend on :5173 (Vite dev server)
-```
-
-## Traefik agents
-
-FluxIP can keep dynamic Traefik configuration up to date on remote systems — typically an `ipAllowList` middleware that contains the current IPs of your devices. It only delivers data; **local templates on the agent decide the file format**, so the same mechanism also works for, say, a service whose upstream is a device's IP.
-
-**How it fits together**
-
-1. In the UI, open **Agents** and add one per Traefik host. FluxIP shows the agent address, a token (once) and a start command.
-2. On a device, add the action **Traefik configuration**, choose the agent and a *group* (for example `admin-allowlist`). Devices with the same agent and group end up in the same list. A device can deliver to a given agent through one action; it can deliver to several agents.
-3. Run the agent next to Traefik. It connects **outbound only** (no open ports), receives a complete snapshot, renders every `*.tmpl` file in its template directory and writes `fluxip-<name>.yml|yaml|toml` into Traefik's file-provider directory.
-
-```bash
-fluxip-agent templates --write /etc/fluxip-agent/templates        # allowlist + upstream examples
-FLUXIP_ADDRESS=https://agents.example.com/<providerId> FLUXIP_TOKEN=fxt_... \
-FLUXIP_TEMPLATES_DIR=/etc/fluxip-agent/templates FLUXIP_OUTPUT_DIR=/etc/traefik/dynamic \
-  fluxip-agent run
-```
-
-Traefik needs a file provider with `watch: true` on that directory; reference the generated objects as `<name>@file`.
-
-**Safety properties** (all covered by tests): files are replaced atomically and only when the content changed; all templates are validated before any file is touched; only files with the agent's prefix (default `fluxip-`) are ever read, written or deleted; an agent restart without FluxIP keeps the existing files; after `FLUXIP_MAX_OFFLINE` (default 24 h, measured with the monotonic clock) the templates are rendered again with `.Stale` set so old addresses don't stay allowed. The bundled allow-list template falls back to `127.0.0.1/32` for an empty or stale group — Traefik 3 disables a middleware with an empty `sourceRange`, which would make the route answer 404 instead of 403.
-
-**Template data**: `.Provider`, `.Version`, `.Time`, `.Stale`, `.Groups` (map of group → entries with `.Name`, `.IPs`, `.IPv4`, `.IPv6`; a missing group is empty) and the helpers `cidr`, `cidrs`, `ipv4`, `ipv6`, `join`, `quote`, `group`, `first`, `default`. Full reference: `specs/008-traefik-provider-config/contracts/agent-cli.md`.
-
-**Operating FluxIP for agents**
-
-| Name | Default | Description |
-|---|---|---|
-| `BACKEND_AGENT_PORT` | `8081` | Port of the agent session listener (gRPC over h2c). Put a reverse-proxy router with an **h2c backend** in front of it (example: [`deploy/traefik/agents-router.example.yml`](deploy/traefik/agents-router.example.yml)) and give agents the public URL. |
-| `BACKEND_AGENT_PUBLIC_URL` | — | Public base URL agents use, e.g. `https://agents.example.com`. Agents can't be created while it is empty. |
-| `BACKEND_AGENT_SNAPSHOT_MAX_BYTES` | `1048576` | Largest snapshot FluxIP will send; beyond it the provider shows an error and the agent keeps its last files. |
-| `BACKEND_AGENT_SNAPSHOT_COALESCE_MS` / `_RESYNC_MS` / `_HEARTBEAT_SECONDS` | `1000` / `900000` / `30` | Collapse window for change bursts, periodic full resend, session heartbeat. |
-
-- **One backend instance.** Live agent sessions are held in memory, so running several backend replicas is not supported yet.
-- **Reverse proxy timeouts.** A session is one long HTTP/2 stream. Traefik's default `readTimeout` (60 s) resets it after exactly one minute — the agent reconnects by itself, but the connection flaps. Set `respondingTimeouts.readTimeout: 0` on the entrypoint agents use (verified with Traefik v3.3); the example above shows a dedicated entrypoint. Heartbeats every 30 s keep the stream busy otherwise.
-- **Releases.** The agent is released separately from the image: [`agent-release.yml`](.github/workflows/agent-release.yml) publishes `fluxip-agent-linux-{amd64,arm64}` plus `SHA256SUMS` as assets of an `agent-vX.Y.Z` release (and an optional `ghcr.io/<owner>/fluxip-agent` image). Its version follows Conventional Commits on `agent/` and `proto/`; commits scoped `agent` don't bump the backend release.
-
-## Testing
-
-```bash
-pnpm --filter fluxip-backend test
-(cd agent && go test ./...)        # agent: renderer, atomic writes, offline timer, end-to-end against a scripted server
-```
-
-Backend tests are real integration tests against Postgres/Redis/BullMQ (Testcontainers-style — no mocked event store or queue), so `docker compose up -d postgres redis` (or equivalent) must be running first, with `BACKEND_DATABASE_URL`/`BACKEND_REDIS_URL` pointed at them. Test files run sequentially (`fileParallelism: false` in `vitest.config.ts`) since they register real BullMQ workers on the same production-named queues.
-
-## Validating the feature end-to-end
-
-`specs/001-ip-change-automation/quickstart.md` walks through all four acceptance scenarios (core DNS-update loop, tenant isolation, review/retry/notify, horizontal scale) against a running stack. The equivalent automated coverage lives in `backend/tests/integration/`.
-
-## Release process
-
-Every push to `main` runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds and tests the project, builds **one** Docker image containing both the backend and frontend, smoke-tests both runtime roles from that image, and — if a commit since the last release qualifies — publishes the image and cuts a version automatically. There are no manual version bumps and no manual `docker build`/`push`.
-
-**Versioning**: the next version is computed from [Conventional Commits](https://www.conventionalcommits.org/) prefixes on commits since the last release tag, via `semantic-release`'s commit analyzer (config: [`.releaserc.json`](.releaserc.json)):
-
-| Commit prefix | Bump |
+| Topic | Where |
 |---|---|
-| `fix:` | patch (`0.1.0` → `0.1.1`) |
-| `feat:` | minor (`0.1.0` → `0.2.0`) |
-| `feat!:` / `fix!:` / a `BREAKING CHANGE:` footer | major (`0.1.0` → `1.0.0`) |
-| anything else (`chore:`, `docs:`, no prefix, ...) | no release |
-
-**One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.yml`'s `app` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "--single", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
-
-```bash
-docker run --env-file .env -p 8080:8080 ghcr.io/<owner>/fluxip:<version> node backend/dist/main.js
-docker run -p 3000:3000 ghcr.io/<owner>/fluxip:<version> serve --single frontend/dist -l 3000
-```
-
-A repo-root `docker-entrypoint.sh` runs before either start command and regenerates the frontend's runtime `config.js` from the `FRONTEND_*` env vars on every container start — see `specs/006-frontend-runtime-config/`.
-
-**Running version**: the release workflow passes the computed version into the image as `FLUXIP_VERSION`; the backend reports it at `GET /api/version` and the GUI shows it under the logo (`dev` outside a release build, e.g. local development).
-
-**Where to find things**: published image tags and `:latest` are under `ghcr.io/<owner>/fluxip` (GitHub Container Registry, repository Packages tab); each release also gets a matching Git tag (`vX.Y.Z`) and GitHub Release. A version's Git tag is only ever created after that version's image has already published successfully — never before, never independently.
-
-**Safety**: a push that fails the build, the tests, the Docker build, or either role's smoke test never publishes anything — the job simply fails at that step. A push with no qualifying commit still runs the full build/test/smoke-test pipeline (so regressions are still caught) but publishes nothing.
-
-**One-time setup**: before the pipeline's first real run, seed a baseline tag so version computation has something to bump from (`semantic-release` otherwise starts from `1.0.0`, not this project's `0.1.0` baseline):
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-## Project structure
-
-```
-agent/      Go agent for Traefik hosts (templates → atomic files), shares only proto/ with the backend
-proto/      Agent session protocol (.proto), the one contract shared between backend and agent
-backend/    Hono API, event-sourced domain model, BullMQ workers, adapters (Postgres, Logto, Hetzner DNS, email)
-frontend/   SolidJS UI (devices, actions, execution history, notifications, account settings) — Tailwind/Kobalte/Solid UI, guided wizards for onboarding/device/action setup
-specs/      Spec-Kit artifacts: spec, plan, research, data model, contracts, tasks
-deploy/     Deployment-time assets (e.g. Postgres init scripts for the Logto database)
-```
+| Architecture overview | [docs/architecture.md](docs/architecture.md) |
+| Environment variables (backend, frontend runtime, `vite dev`) | [docs/configuration.md](docs/configuration.md) |
+| Traefik agents (setup, template data, operating notes) | [docs/traefik-agents.md](docs/traefik-agents.md) |
+| Local development, testing, project structure | [docs/development.md](docs/development.md) |
+| Release process and versioning | [docs/release.md](docs/release.md) |
+| Known deviations from the 12-factor criteria | [docs/12-factor-backlog.md](docs/12-factor-backlog.md) |
+| Feature specs, plans and contracts | [`specs/`](specs/) |
