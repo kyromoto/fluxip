@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.17.0](https://github.com/kyromoto/fluxip/compare/v1.16.0...v1.17.0) (2026-10-30)
+
+
 ## [1.16.0](https://github.com/kyromoto/fluxip/compare/v1.15.0...v1.16.0) (2026-10-30)
 
 
