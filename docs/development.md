@@ -2,6 +2,8 @@
 
 ## Local development (without Docker for the app itself)
 
+`docker-compose.yml` is local and gitignored. Create it once with `cp docker-compose.example.yml docker-compose.yml` and adjust it to your setup.
+
 ```bash
 pnpm install
 docker compose up -d postgres redis logto   # infra only
@@ -23,7 +25,7 @@ Exit codes: `0` ok, `1` the check or migration failed, `2` usage error. `help` l
 
 The web process does not migrate any more. It checks the schema on start and stops with `Database schema is outdated … Run: node backend/dist/cli.js migrate` if migrations are pending. In Docker Compose the one-off `migrate` service runs first; elsewhere (an orchestrator, `docker run`) make `migrate` a release step before the new version starts. A `migrate` run that waits on the lock behind a crashed process stays blocked until Postgres drops that connection (TCP timeout).
 
-`app` and `frontend` have Compose healthchecks (`/readyz`, `/`). `/readyz` answers 503 while Postgres or Redis is unreachable, so `app` turns unhealthy and recovers on its own. The check calls `127.0.0.1`; if you set `BACKEND_BIND_ADDRESS` to a specific address, adjust the check in `docker-compose.yml`.
+`backend` and `frontend` have Compose healthchecks (`/readyz`, `/`). `/readyz` answers 503 while Postgres or Redis is unreachable, so `backend` turns unhealthy and recovers on its own. The check calls `127.0.0.1`; if you set `BACKEND_BIND_ADDRESS` to a specific address, adjust the check in your `docker-compose.yml`.
 
 ## Testing
 

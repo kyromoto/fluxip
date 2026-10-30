@@ -14,7 +14,7 @@ Every push to `main` runs [`.github/workflows/release.yml`](../.github/workflows
 
 **Multiple commits per push**: a push produces at most **one** release. All commits since the last release tag are analysed together and the highest bump wins (e.g. three `fix:` and one `feat:` → one minor bump, not four bumps). Commits with the scope `agent` (e.g. `fix(agent): ...`) never trigger a release on their own; the agent is released separately via [`agent-release.yml`](../.github/workflows/agent-release.yml).
 
-**One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.yml`'s `app` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "--single", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
+**One image, two runtime roles**: the published image (`ghcr.io/<owner>/fluxip`) contains both the backend and the frontend's static build. Which one runs is chosen entirely by the container's start command, not by a different image or tag — see `docker-compose.example.yml`'s `backend` (`command: ["node", "backend/dist/main.js"]`) and `frontend` (`command: ["serve", "--single", "frontend/dist", "-l", "3000"]`) services. The same pattern works against the published image directly:
 
 ```bash
 # once per version, before the backend starts (the backend no longer migrates on startup)
@@ -23,7 +23,7 @@ docker run --env-file .env -p 8080:8080 ghcr.io/<owner>/fluxip:<version> node ba
 docker run -p 3000:3000 ghcr.io/<owner>/fluxip:<version> serve --single frontend/dist -l 3000
 ```
 
-Without the `migrate` step the backend stops on start with a message naming it. In Docker Compose, the `migrate` service does it before `app` starts.
+Without the `migrate` step the backend stops on start with a message naming it. In Docker Compose, the `migrate` service does it before `backend` starts.
 
 A repo-root `docker-entrypoint.sh` runs before either start command and regenerates the frontend's runtime `config.js` from the `FRONTEND_*` env vars on every container start — see `specs/006-frontend-runtime-config/`.
 

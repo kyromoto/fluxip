@@ -18,3 +18,6 @@ test-results/
 blob-report/
 playwright/.auth/
 release-notes.md
+
+# Local compose file; copy docker-compose.example.yml to start
+docker-compose.yml
