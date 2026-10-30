@@ -1,9 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: 1.1.0 → 1.2.0
-- Modified principles: none
-- Added sections:
-  - Core Principles: III. Web UI UX Standards
+- Version change: 1.2.0 → 1.3.0
+- Modified principles:
+  - III. Web UI UX Standards: III.2 (tab styling and width, breadcrumbs cover
+    the active sub-page) and III.3 (primary CTA shares the tab-bar row)
+- Added sections: none
 - Removed sections: none
 - Templates requiring updates:
   - ✅ .specify/templates/plan-template.md (Constitution Check references this file generically; no changes needed)
@@ -17,10 +18,15 @@ Sync Impact Report
   - frontend/src/pages/{IpClients,Credentials,TraefikProviders}.tsx: primary CTAs top right, FAB on mobile; group card/row actions into safe vs. danger
   - frontend/src/flows/*: wizards exist; check mobile usability
   - frontend/src/lib/breadcrumbs.ts, components/layout/Breadcrumbs.tsx: exist; check coverage of all detail pages
+- 1.3.0 implementation: NavTabs, DeviceLayout, PageHeader and lib/breadcrumbs.ts
+  already follow the amended rules for device pages; docs/development.md
+  describes them (no change needed). Open: /actions/:id/executions sits outside
+  DeviceLayout, its action stays in the page header.
 - Follow-up TODOs:
   - TODO(ADDITIONAL_PRINCIPLES): Add further principles (e.g. testing discipline, architecture constraints) as they are decided.
 
-Previous reports: 1.1.0 (2026-10-29) added Principle II (Twelve-Factor Compliance);
+Previous reports: 1.2.0 (2026-10-30) added Principle III (Web UI UX Standards);
+1.1.0 (2026-10-29) added Principle II (Twelve-Factor Compliance);
 1.0.0 (2026-07-23) initial ratification with Principle I and Governance.
 -->
 
@@ -112,18 +118,23 @@ follow these rules.
 
 - **Global top navigation**: App-wide entry points (Devices, Credentials,
   Agents) MUST live in a persistent horizontal top bar.
-- **Breadcrumbs**: Detail and child pages MUST show a breadcrumb chain
-  (e.g. Devices / [Device-ID]).
+- **Breadcrumbs**: Detail and child pages MUST show a breadcrumb chain that
+  reflects every level of the hierarchy, including the active sub-page or
+  tab of a detail view (e.g. Devices / [Device] / Actions). Parent levels
+  MUST be links; the current level is plain text.
 - **Tabs over headings**: Sub-sections of an object (e.g. Actions, History,
-  Settings) MUST be horizontal tabs directly below the breadcrumbs, with a
-  visible active state. Large page titles that repeat the active tab's name
-  are prohibited.
+  Settings) MUST be horizontal tabs directly below the breadcrumbs. The
+  active tab MUST be marked by an underline in the primary (call-to-action)
+  colour, and the tab bar MUST be only as wide as its entries. Large page
+  titles that repeat the active tab's name are prohibited.
 
 **3. Placement and calls to action**
 
 - **Primary CTA top right**: Primary actions that complete a flow or open a
   global contextual dialog (e.g. "+ Add an action") MUST sit at the top
-  right of the desktop content area.
+  right of the desktop content area. On pages with a tab bar they MUST sit
+  at the right end of the tab bar's row; on pages without tabs, top right
+  in the page header.
 - **Mobile floating action button**: Below 768px, the primary CTA that starts
   a wizard MUST become a sticky, bottom-anchored element (floating action
   button).
@@ -169,4 +180,4 @@ Compliance with this constitution is expected in every session; when
 guidance here and an ad hoc request conflict, this file governs unless the
 user explicitly overrides it for that instance.
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-23 | **Last Amended**: 2026-10-30
+**Version**: 1.3.0 | **Ratified**: 2026-07-23 | **Last Amended**: 2026-10-30
