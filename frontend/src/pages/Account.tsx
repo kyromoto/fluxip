@@ -1,6 +1,8 @@
 import { createResource, createSignal, Show } from "solid-js";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
+import { PageHeader } from "~/components/layout/PageHeader";
 import { Button } from "~/components/ui/button";
+import { CardActions } from "~/components/ui/card-actions";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
 import { api } from "~/services/api";
@@ -48,7 +50,7 @@ export default function Account() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-semibold tracking-tight">Account</h1>
+      <PageHeader title="Account" />
 
       <Show when={account()}>
         {(info) => (
@@ -85,7 +87,7 @@ export default function Account() {
             </Show>
           </CardContent>
           <CardFooter>
-            <Button type="submit">Change password</Button>
+            <CardActions safe={<Button type="submit">Change password</Button>} />
           </CardFooter>
         </form>
       </Card>
@@ -104,9 +106,13 @@ export default function Account() {
           </Show>
         </CardContent>
         <CardFooter>
-          <Button variant="destructive" onClick={() => void handleDeleteAccount()}>
-            Delete my account
-          </Button>
+          <CardActions
+            danger={
+              <Button variant="destructive" onClick={() => void handleDeleteAccount()}>
+                Delete my account
+              </Button>
+            }
+          />
         </CardFooter>
       </Card>
     </div>

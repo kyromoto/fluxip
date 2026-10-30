@@ -1,9 +1,12 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CardActions } from "~/components/ui/card-actions";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
+import { PageHeader } from "~/components/layout/PageHeader";
+import { PrimaryAction } from "~/components/layout/PrimaryAction";
 import { CredentialFormDialog } from "~/components/credentials/CredentialFormDialog";
 import { credentialTypeLabel } from "~/lib/credential-types";
 import { api, ApiError } from "~/services/api";
@@ -74,10 +77,9 @@ export default function Credentials() {
 
   return (
     <div class="space-y-6">
-      <div class="flex items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Credentials</h1>
-        <Button onClick={openDialog}>Add credential</Button>
-      </div>
+      <PageHeader title="Credentials">
+        <PrimaryAction onClick={openDialog}>Add credential</PrimaryAction>
+      </PageHeader>
 
       <Show when={error()}>
         <ErrorMessage error={error()} />
@@ -93,7 +95,7 @@ export default function Credentials() {
                   {(action) => (
                     <li>
                       {action.recordName} ({action.zone}) —{" "}
-                      <a href={`/ip-clients/${action.ipClientId}/actions`} class="underline">
+                      <a href={`/ip-clients/${action.ipClientId}/actions`} class="touch-target inline-flex items-center underline">
                         view this device's actions
                       </a>
                     </li>
@@ -133,9 +135,13 @@ export default function Credentials() {
                       </dl>
                     </CardContent>
                     <CardFooter>
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(credential.credentialId)}>
-                        Delete
-                      </Button>
+                      <CardActions
+                        danger={
+                          <Button size="sm" variant="destructive" onClick={() => handleDelete(credential.credentialId)}>
+                            Delete
+                          </Button>
+                        }
+                      />
                     </CardFooter>
                   </Card>
                 )}

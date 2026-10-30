@@ -61,7 +61,10 @@
       --muted-foreground: 215 15% 65%;
       --accent: 239 40% 24%;
       --accent-foreground: 0 0% 98%;
-      --destructive: 0 62.8% 30.6%;
+      /* 45% lightness (was 30.6%): ~3:1 against the dark background and ~6:1
+         against the foreground, so danger actions stay a clear visual speed
+         bump in dark mode (Constitution III.3). */
+      --destructive: 0 62.8% 45%;
       --destructive-foreground: 0 0% 98%;
       --border: 215 20% 24%;
       --input: 215 20% 24%;
@@ -76,5 +79,15 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/*
+ * Constitution III.4: interactive elements are at least 44x44px below the
+ * 768px breakpoint (Tailwind `md`). Desktop keeps the compact sizing.
+ */
+@layer components {
+  .touch-target {
+    @apply max-md:min-h-11 max-md:min-w-11;
   }
 }

@@ -3,6 +3,7 @@ import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
 import { ExecutionStatusIcon, type ExecutionStatus } from "~/components/history/ExecutionStatusIcon";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { PageHeader } from "~/components/layout/PageHeader";
 import { api } from "~/services/api";
 
 interface IpClientSummary {
@@ -176,12 +177,10 @@ export default function DeviceHistory() {
 
   return (
     <div class="space-y-6">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight">{device()?.label ?? "Device"} — History</h1>
-        <p class="text-sm text-muted-foreground">
-          Every confirmed address change this device reported, and what happened as a result. Most recent first.
-        </p>
-      </div>
+      <PageHeader title={`${device()?.label ?? "Device"} — History`} />
+      <p class="text-sm text-muted-foreground">
+        Every confirmed address change this device reported, and what happened as a result. Most recent first.
+      </p>
 
       <Show when={changes()} fallback={<p class="text-muted-foreground">Loading…</p>}>
         {(items) => (
@@ -248,7 +247,7 @@ export default function DeviceHistory() {
                 <label class="flex items-center gap-2 text-muted-foreground">
                   Per page
                   <select
-                    class="h-9 rounded-md border border-input bg-background px-2 text-foreground"
+                    class="h-9 rounded-md border border-input bg-background px-2 text-foreground max-md:h-11 max-md:min-w-11"
                     value={pageSize()}
                     onChange={(e) => {
                       setPageSize(Number(e.currentTarget.value));

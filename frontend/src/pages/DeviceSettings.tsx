@@ -2,9 +2,11 @@ import { useParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { Button } from "~/components/ui/button";
+import { CardActions } from "~/components/ui/card-actions";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import { ReviewCredentialStep } from "~/flows/device-wizard/steps/ReviewCredentialStep";
+import { PageHeader } from "~/components/layout/PageHeader";
 import { api } from "~/services/api";
 
 interface IpClientSummary {
@@ -68,7 +70,7 @@ export default function DeviceSettings() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-semibold tracking-tight">{device()?.label ?? "Device"} — settings</h1>
+      <PageHeader title={`${device()?.label ?? "Device"} — Settings`} />
 
       <Show when={device()}>
         {(client) => (
@@ -106,9 +108,13 @@ export default function DeviceSettings() {
                   </CardDescription>
                 </CardHeader>
                 <CardFooter>
-                  <Button variant="outline" onClick={() => void handleToggle(client().status)}>
-                    {client().status === "enabled" ? "Disable device" : "Enable device"}
-                  </Button>
+                  <CardActions
+                    safe={
+                      <Button variant="outline" onClick={() => void handleToggle(client().status)}>
+                        {client().status === "enabled" ? "Disable device" : "Enable device"}
+                      </Button>
+                    }
+                  />
                 </CardFooter>
               </Card>
 
@@ -121,9 +127,13 @@ export default function DeviceSettings() {
                   </CardDescription>
                 </CardHeader>
                 <CardFooter>
-                  <Button variant="outline" onClick={() => void handleRotate()}>
-                    Rotate credential
-                  </Button>
+                  <CardActions
+                    safe={
+                      <Button variant="outline" onClick={() => void handleRotate()}>
+                        Rotate credential
+                      </Button>
+                    }
+                  />
                 </CardFooter>
               </Card>
 
@@ -135,9 +145,13 @@ export default function DeviceSettings() {
                   </CardDescription>
                 </CardHeader>
                 <CardFooter>
-                  <Button variant="destructive" onClick={() => void handleDecommission()}>
-                    Decommission device
-                  </Button>
+                  <CardActions
+                    danger={
+                      <Button variant="destructive" onClick={() => void handleDecommission()}>
+                        Decommission device
+                      </Button>
+                    }
+                  />
                 </CardFooter>
               </Card>
             </Show>

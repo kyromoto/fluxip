@@ -5,7 +5,7 @@ import type { TraefikProviderWizardData } from "../TraefikProviderWizard";
 export const ReviewProviderStep: Component<WizardStepComponentProps<TraefikProviderWizardData>> = (props) => (
   <div class="space-y-2">
     <h2 class="text-lg font-semibold">Review</h2>
-    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dd]:break-words">
       <dt class="text-muted-foreground">Name</dt>
       <dd>{props.data.name.trim()}</dd>
       <dt class="text-muted-foreground">Connection</dt>

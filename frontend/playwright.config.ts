@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Two projects per research.md §6: a 360px floor (FR-016/SC-004) and a
- * large-desktop width, each run under both a forced-light and forced-dark
+ * Projects per research.md §6: a 360px floor (FR-016/SC-004), a 320px floor
+ * for the wizards (specs/011 FR-012) and a large-desktop width, each run under both a forced-light and forced-dark
  * emulated color scheme (FR-003/FR-004/SC-005, SC-008).
  *
  * Registration/login is Logto-hosted (research.md §1), so authenticated
@@ -40,6 +40,14 @@ export default defineConfig({
     {
       name: "mobile-360-dark",
       use: { viewport: { width: 360, height: 800 }, colorScheme: "dark" },
+    },
+    {
+      name: "mobile-320-light",
+      use: { viewport: { width: 320, height: 700 }, colorScheme: "light" },
+    },
+    {
+      name: "mobile-320-dark",
+      use: { viewport: { width: 320, height: 700 }, colorScheme: "dark" },
     },
     {
       name: "desktop-light",

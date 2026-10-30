@@ -20,6 +20,15 @@ async function fetchDeviceLabel(ipClientId: string): Promise<string> {
   return device.label;
 }
 
+/**
+ * The device sections (Actions, History, Settings) are tabs under the
+ * breadcrumb (DeviceLayout), so the trail stops at the device.
+ */
+async function deviceCrumbs({ ipClientId }: Record<string, string>): Promise<BreadcrumbSegment[]> {
+  const label = await fetchDeviceLabel(ipClientId).catch(() => ipClientId);
+  return [{ label: "Devices", href: "/ip-clients" }, { label }];
+}
+
 interface RouteMeta {
   pattern: string;
   resolve: (params: Record<string, string>) => BreadcrumbSegment[] | Promise<BreadcrumbSegment[]>;
@@ -36,32 +45,15 @@ const ROUTES: RouteMeta[] = [
   { pattern: "/ip-clients", resolve: () => [{ label: "Devices" }] },
   {
     pattern: "/ip-clients/:ipClientId/actions",
-    resolve: async ({ ipClientId }) => {
-      const label = await fetchDeviceLabel(ipClientId).catch(() => ipClientId);
-      return [{ label: "Devices", href: "/ip-clients" }, { label }];
-    },
+    resolve: deviceCrumbs,
   },
   {
     pattern: "/ip-clients/:ipClientId/history",
-    resolve: async ({ ipClientId }) => {
-      const label = await fetchDeviceLabel(ipClientId).catch(() => ipClientId);
-      return [
-        { label: "Devices", href: "/ip-clients" },
-        { label, href: `/ip-clients/${ipClientId}/actions` },
-        { label: "History" },
-      ];
-    },
+    resolve: deviceCrumbs,
   },
   {
     pattern: "/ip-clients/:ipClientId/settings",
-    resolve: async ({ ipClientId }) => {
-      const label = await fetchDeviceLabel(ipClientId).catch(() => ipClientId);
-      return [
-        { label: "Devices", href: "/ip-clients" },
-        { label, href: `/ip-clients/${ipClientId}/actions` },
-        { label: "Settings" },
-      ];
-    },
+    resolve: deviceCrumbs,
   },
   {
     pattern: "/actions/:actionId/executions",

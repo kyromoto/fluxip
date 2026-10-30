@@ -1,10 +1,13 @@
 import { useParams } from "@solidjs/router";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
+import { CardActions } from "~/components/ui/card-actions";
 import { Card, CardContent } from "~/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
+import { PageHeader } from "~/components/layout/PageHeader";
+import { PrimaryAction } from "~/components/layout/PrimaryAction";
 import { ActionWizard, type ExistingAction } from "~/flows/action-wizard/ActionWizard";
 import { DELIVERY_LABEL, type DeliveryStatusItem } from "~/lib/traefik-providers";
 import { api } from "~/services/api";
@@ -139,20 +142,11 @@ export default function Actions() {
 
   return (
     <div class="space-y-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Actions</h1>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <Button size="sm" onClick={() => setWizardTarget("new")}>
-            Add an action
-          </Button>
-          <Button as="a" href={`/ip-clients/${params.ipClientId}/history`} size="sm" variant="outline">
-            History
-          </Button>
-          <Button as="a" href={`/ip-clients/${params.ipClientId}/settings`} size="sm" variant="outline">
-            Settings
-          </Button>
-        </div>
-      </div>
+      <PageHeader title="Actions">
+        <PrimaryAction size="sm" onClick={() => setWizardTarget("new")}>
+          Add an action
+        </PrimaryAction>
+      </PageHeader>
 
       <Show when={error()}>
         <ErrorMessage error={error()} />
@@ -235,22 +229,28 @@ export default function Actions() {
                         <dd>{formatAddressFamilies(action.addressFamilies)}</dd>
                       </dl>
                       <Show when={action.type !== "traefik_config_delivery"}>
-                        <a href={`/actions/${action.actionId}/executions`} class="text-sm hover:underline">
+                        <a href={`/actions/${action.actionId}/executions`} class="touch-target inline-flex items-center text-sm hover:underline">
                           View history
                         </a>
                       </Show>
                       <Show when={action.status !== "detached"}>
-                        <div class="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setWizardTarget(toExistingAction(action))}>
-                            Edit
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleToggle(action.actionId, action.status)}>
-                            {action.status === "enabled" ? "Disable" : "Enable"}
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDetach(action.actionId)}>
-                            Detach
-                          </Button>
-                        </div>
+                        <CardActions
+                          safe={
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => setWizardTarget(toExistingAction(action))}>
+                                Edit
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleToggle(action.actionId, action.status)}>
+                                {action.status === "enabled" ? "Disable" : "Enable"}
+                              </Button>
+                            </>
+                          }
+                          danger={
+                            <Button size="sm" variant="destructive" onClick={() => handleDetach(action.actionId)}>
+                              Detach
+                            </Button>
+                          }
+                        />
                       </Show>
                     </CardContent>
                   </Card>

@@ -1,6 +1,7 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
+import { PageHeader } from "~/components/layout/PageHeader";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
@@ -89,7 +90,7 @@ export default function NotificationSettings() {
 
   return (
     <div class="space-y-6">
-      <h1 class="text-2xl font-semibold tracking-tight">Notifications</h1>
+      <PageHeader title="Notifications" />
 
       <Show when={error()}>
         <ErrorMessage error={error()} />

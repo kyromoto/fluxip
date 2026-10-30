@@ -30,7 +30,7 @@ const BreadcrumbItem: Component<ComponentProps<"li">> = (props) => {
 
 const BreadcrumbLink: Component<ComponentProps<typeof A>> = (props) => {
   const [local, others] = splitProps(props, ["class"])
-  return <A class={cn("transition-colors hover:text-foreground", local.class)} {...others} />
+  return <A class={cn("touch-target inline-flex items-center transition-colors hover:text-foreground", local.class)} {...others} />
 }
 
 const BreadcrumbPage: Component<ComponentProps<"span">> = (props) => {
@@ -40,7 +40,7 @@ const BreadcrumbPage: Component<ComponentProps<"span">> = (props) => {
       role="link"
       aria-disabled="true"
       aria-current="page"
-      class={cn("font-medium text-foreground", local.class)}
+      class={cn("touch-target inline-flex items-center font-medium text-foreground", local.class)}
       {...others}
     />
   )

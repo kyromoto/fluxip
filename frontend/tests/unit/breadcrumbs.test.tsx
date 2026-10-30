@@ -55,6 +55,17 @@ describe("Breadcrumbs", () => {
     expect(devicesLink.getAttribute("href")).toBe("/ip-clients");
   });
 
+  it.each(["history", "settings"])("shows only the device as current crumb for the %s tab", async (tab) => {
+    mockedApi.get.mockResolvedValueOnce({ ipClientId: "client-1", label: "Living Room Router" });
+
+    renderAt(`/ip-clients/client-1/${tab}`);
+
+    const current = await screen.findByText("Living Room Router");
+    expect(current.getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByText(/^(History|Settings)$/)).toBeNull();
+    expect(screen.getByRole("link", { name: "Devices" }).getAttribute("href")).toBe("/ip-clients");
+  });
+
   it("resolves the device for an execution-history route via its actions, without device id in the URL", async () => {
     mockedApi.get.mockImplementation(async (path: string) => {
       if (path === "/actions/action-1/executions") {

@@ -1,5 +1,6 @@
 import { Route, Router } from "@solidjs/router";
 import { lazy } from "solid-js";
+import { DeviceLayout } from "./components/layout/DeviceLayout";
 import { ProtectedLayout } from "./components/layout/ProtectedLayout";
 
 const IpClients = lazy(() => import("./pages/IpClients"));
@@ -25,9 +26,11 @@ export default function App() {
       <Route path="/" component={ProtectedLayout}>
         <Route path="/" component={IpClients} />
         <Route path="/ip-clients" component={IpClients} />
-        <Route path="/ip-clients/:ipClientId/actions" component={Actions} />
-        <Route path="/ip-clients/:ipClientId/history" component={DeviceHistory} />
-        <Route path="/ip-clients/:ipClientId/settings" component={DeviceSettings} />
+        <Route path="/ip-clients/:ipClientId" component={DeviceLayout}>
+          <Route path="/actions" component={Actions} />
+          <Route path="/history" component={DeviceHistory} />
+          <Route path="/settings" component={DeviceSettings} />
+        </Route>
         <Route path="/actions/:actionId/executions" component={ExecutionHistory} />
         <Route path="/credentials" component={Credentials} />
         <Route path="/agents" component={TraefikProviders} />

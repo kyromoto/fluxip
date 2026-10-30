@@ -39,7 +39,7 @@ export const TraefikDeliveryStep: Component<WizardStepComponentProps<ActionWizar
               ) : (
                 <>
                   You don't have an agent yet.{" "}
-                  <a href="/agents" class="underline">
+                  <a href="/agents" class="touch-target inline-flex items-center underline">
                     Add one first
                   </a>
                   , then come back.

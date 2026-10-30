@@ -4,6 +4,7 @@ import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "~/components/ui/table";
+import { PageHeader } from "~/components/layout/PageHeader";
 import { api } from "~/services/api";
 
 interface ExecutionSummary {
@@ -62,12 +63,11 @@ export default function ExecutionHistory() {
 
   return (
     <div class="space-y-6">
-      <div class="flex items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Update history</h1>
+      <PageHeader title="Update history">
         <Button onClick={() => void handleRerun()} disabled={rerunning()}>
           {rerunning() ? "Re-running…" : "Re-run using last known address"}
         </Button>
-      </div>
+      </PageHeader>
 
       <Show when={error()}>
         <ErrorMessage error={error()} />

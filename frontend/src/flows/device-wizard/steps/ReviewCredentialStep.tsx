@@ -24,7 +24,7 @@ export const ReviewCredentialStep: Component<ReviewCredentialStepProps> = (props
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-2 text-sm">
-        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 [&>dd]:break-all">
           <dt class="text-muted-foreground">Update URL</dt>
           <dd class="font-mono">/nic/update?hostname=fluxip&amp;myip=&lt;ipaddr&gt;</dd>
           <dt class="text-muted-foreground">Username</dt>

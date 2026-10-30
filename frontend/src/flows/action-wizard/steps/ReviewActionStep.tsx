@@ -13,7 +13,7 @@ export const ReviewActionStep: Component<WizardStepComponentProps<ActionWizardDa
         when={props.data.type !== "traefik_config_delivery"}
         fallback={
           <>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dd]:break-words">
               <dt class="text-muted-foreground">Group</dt>
               <dd>{props.data.group.trim()}</dd>
               <dt class="text-muted-foreground">Sends</dt>
@@ -28,7 +28,7 @@ export const ReviewActionStep: Component<WizardStepComponentProps<ActionWizardDa
         <Show
           when={props.data.type === "hetzner_cloud_dns_update"}
           fallback={
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dd]:break-words">
               <dt class="text-muted-foreground">Firewall ID</dt>
               <dd>{props.data.firewallId}</dd>
               <dt class="text-muted-foreground">Rule</dt>
@@ -41,7 +41,7 @@ export const ReviewActionStep: Component<WizardStepComponentProps<ActionWizardDa
             </dl>
           }
         >
-          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dd]:break-words">
             <dt class="text-muted-foreground">Zone</dt>
             <dd>{props.data.zone}</dd>
             <dt class="text-muted-foreground">Record</dt>

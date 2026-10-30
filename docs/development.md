@@ -34,6 +34,18 @@ pnpm --filter fluxip-backend test
 
 Backend tests are real integration tests against Postgres/Redis/BullMQ (Testcontainers-style — no mocked event store or queue), so `docker compose up -d postgres redis` (or equivalent) must be running first, with `BACKEND_DATABASE_URL`/`BACKEND_REDIS_URL` pointed at them. Test files run sequentially (`fileParallelism: false` in `vitest.config.ts`) since they register real BullMQ workers on the same production-named queues.
 
+## UI conventions
+
+The web UI follows Principle III of the [constitution](../.specify/memory/constitution.md) (desktop and mobile). The rules live in shared components, so pages use them instead of re-implementing them:
+
+- `PageHeader` (`frontend/src/components/layout/`): screen-reader heading plus the slot for the page's primary action. There is no visible page title; the breadcrumb (and the tab bar on device pages) names the page.
+- `PrimaryAction`: the one primary action per page. Top right from 768px up, a floating button at the bottom right below that.
+- `CardActions` (`components/ui/`): safe actions on the left, destructive ones (`variant="destructive"`) on the right, 12px apart.
+- `NavTabs` / `DeviceLayout`: link-based tab bar for a device's Actions, History and Settings.
+- Touch targets: below 768px every interactive element is at least 44x44px. `Button` and the other `components/ui` primitives do this already; use the `.touch-target` utility (`app.css`) for plain links.
+
+`pnpm --filter fluxip-frontend test:e2e` checks placement and touch-target sizes. It needs a signed-in session, see `frontend/tests/e2e/README.md`.
+
 ## Validating the feature end-to-end
 
 `specs/001-ip-change-automation/quickstart.md` walks through all four acceptance scenarios (core DNS-update loop, tenant isolation, review/retry/notify, horizontal scale) against a running stack. The equivalent automated coverage lives in `backend/tests/integration/`.

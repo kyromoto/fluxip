@@ -1,8 +1,9 @@
 import { createResource, createSignal, For, Show } from "solid-js";
-import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import { EmptyState } from "~/components/layout/EmptyState";
+import { PageHeader } from "~/components/layout/PageHeader";
+import { PrimaryAction } from "~/components/layout/PrimaryAction";
 import { DeviceWizard } from "~/flows/device-wizard/DeviceWizard";
 import { api } from "~/services/api";
 import { cn } from "~/lib/cn";
@@ -48,10 +49,9 @@ export default function IpClients() {
 
   return (
     <div class="space-y-6">
-      <div class="flex items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Devices</h1>
-        <Button onClick={openWizard}>Add a device</Button>
-      </div>
+      <PageHeader title="Devices">
+        <PrimaryAction onClick={openWizard}>Add a device</PrimaryAction>
+      </PageHeader>
 
       <Show when={ipClients()} fallback={<p class="text-muted-foreground">Loading…</p>}>
         {(items) => (
@@ -73,7 +73,7 @@ export default function IpClients() {
                     <CardHeader>
                       <div class="flex items-center justify-between gap-2">
                         <CardTitle class="text-base">
-                          <a href={`/ip-clients/${client.ipClientId}/actions`} class="hover:underline">
+                          <a href={`/ip-clients/${client.ipClientId}/actions`} class="touch-target inline-flex items-center hover:underline">
                             {client.label}
                           </a>
                         </CardTitle>

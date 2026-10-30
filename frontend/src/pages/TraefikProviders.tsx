@@ -2,8 +2,11 @@ import { createResource, createSignal, For, onCleanup, Show } from "solid-js";
 import { CopyButton } from "~/components/feedback/CopyButton";
 import { ErrorMessage } from "~/components/feedback/ErrorMessage";
 import { EmptyState } from "~/components/layout/EmptyState";
+import { PageHeader } from "~/components/layout/PageHeader";
+import { PrimaryAction } from "~/components/layout/PrimaryAction";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CardActions } from "~/components/ui/card-actions";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import { SetupResult } from "~/flows/traefik-provider-wizard/SetupResult";
@@ -94,10 +97,9 @@ export default function TraefikProviders() {
 
   return (
     <div class="space-y-6">
-      <div class="flex items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Agents</h1>
-        <Button onClick={() => setCreating(true)}>Add an agent</Button>
-      </div>
+      <PageHeader title="Agents">
+        <PrimaryAction onClick={() => setCreating(true)}>Add an agent</PrimaryAction>
+      </PageHeader>
 
       <Show when={error()}>
         <ErrorMessage error={error()} />
@@ -113,7 +115,7 @@ export default function TraefikProviders() {
                   {(action) => (
                     <li>
                       group <code>{action.group}</code> —{" "}
-                      <a href={`/ip-clients/${action.ipClientId}/actions`} class="underline">
+                      <a href={`/ip-clients/${action.ipClientId}/actions`} class="touch-target inline-flex items-center underline">
                         view this device's actions
                       </a>
                     </li>
@@ -218,7 +220,7 @@ export default function TraefikProviders() {
                                 >
                                   <Button
                                     size="sm"
-                                    variant="outline"
+                                    variant="destructive"
                                     onClick={() => void handleRevoke(provider, token.tokenId, token.last4)}
                                   >
                                     Revoke
@@ -230,16 +232,24 @@ export default function TraefikProviders() {
                         </ul>
                       </div>
                     </CardContent>
-                    <CardFooter class="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => void handleNewToken(provider)}>
-                        New token
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => void handleRename(provider)}>
-                        Rename
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => void handleDelete(provider)}>
-                        Delete
-                      </Button>
+                    <CardFooter>
+                      <CardActions
+                        safe={
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => void handleNewToken(provider)}>
+                              New token
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => void handleRename(provider)}>
+                              Rename
+                            </Button>
+                          </>
+                        }
+                        danger={
+                          <Button size="sm" variant="destructive" onClick={() => void handleDelete(provider)}>
+                            Delete
+                          </Button>
+                        }
+                      />
                     </CardFooter>
                   </Card>
                 )}

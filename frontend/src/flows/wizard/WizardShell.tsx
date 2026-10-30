@@ -48,11 +48,11 @@ export function WizardShell<TData extends object>(props: WizardShellProps<TData>
           </div>
         </Show>
       </CardContent>
-      <CardFooter class="flex justify-between gap-2">
+      <CardFooter class="flex flex-wrap items-center justify-between gap-3">
         <Button type="button" variant="ghost" onClick={() => props.onCancel()}>
           Cancel
         </Button>
-        <div class="flex gap-2">
+        <div class="ml-auto flex flex-wrap items-center gap-3">
           <Show when={props.wizard.canGoBack()}>
             <Button type="button" variant="outline" onClick={() => props.wizard.goBack()}>
               Back

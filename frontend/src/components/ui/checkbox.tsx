@@ -15,11 +15,11 @@ const Checkbox = <T extends ValidComponent = "div">(
   const [local, others] = splitProps(props as CheckboxRootProps, ["class"])
   return (
     <CheckboxPrimitive.Root
-      class={cn("items-top group relative flex space-x-2", local.class)}
+      class={cn("items-top group relative flex space-x-2 max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center", local.class)}
       {...others}
     >
       <CheckboxPrimitive.Input class="peer" />
-      <CheckboxPrimitive.Control class="size-4 shrink-0 rounded-sm border border-primary ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 data-[checked]:border-none data-[indeterminate]:border-none data-[checked]:bg-primary data-[indeterminate]:bg-primary data-[checked]:text-primary-foreground data-[indeterminate]:text-primary-foreground">
+      <CheckboxPrimitive.Control class="size-4 max-md:size-6 shrink-0 rounded-sm border border-primary ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 data-[checked]:border-none data-[indeterminate]:border-none data-[checked]:bg-primary data-[indeterminate]:bg-primary data-[checked]:text-primary-foreground data-[indeterminate]:text-primary-foreground">
         <CheckboxPrimitive.Indicator>
           <Switch>
             <Match when={!others.indeterminate}>
